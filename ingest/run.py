@@ -6,6 +6,7 @@
     python ingest/run.py fpl       # live FPL only
     python ingest/run.py predict   # recompute predicted points
     python ingest/run.py plan      # recompute transfer suggestions
+    python ingest/run.py optimise  # best reachable squad (MILP)
     python ingest/run.py shots     # FPL-Core-Insights shot data
     python ingest/run.py trends    # rate stats and trend flags
     python ingest/run.py backtest  # re-run the trend backtest
@@ -26,7 +27,10 @@ TREND_SEASON = "2025-26"
 
 def main() -> int:
     step = sys.argv[1] if len(sys.argv) > 1 else "all"
-    known = {"all", "full", "history", "fpl", "predict", "plan", "shots", "trends", "backtest"}
+    known = {
+        "all", "full", "history", "fpl", "predict", "plan",
+        "optimise", "shots", "trends", "backtest",
+    }
     if step not in known:
         print(__doc__)
         return 2
@@ -70,6 +74,11 @@ def main() -> int:
         except RuntimeError as exc:
             # No squad imported yet is a normal state, not a pipeline failure.
             log(f"[planner] skipped: {exc}")
+
+    if step in ("all", "full", "optimise"):
+        import optimiser
+
+        optimiser.main()
 
     return 0
 

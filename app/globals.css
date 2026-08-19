@@ -106,3 +106,10 @@ details.player[open] > summary { color: var(--accent); }
 .plan-row { background: rgba(78,161,255,.07); }
 .step { display: inline-block; min-width: 20px; text-align: center; border-radius: 3px;
   background: var(--panel-2); border: 1px solid var(--line); font-size: 11px; padding: 0 4px; }
+
+.explain { max-width: 78ch; }
+.explain p { margin: 0 0 10px; color: var(--text); }
+.explain p.meta { color: var(--muted); }
+.explain ul { margin: 0 0 10px; padding-left: 20px; color: var(--text); }
+.explain li { margin-bottom: 4px; }
+.explain em { color: var(--muted); font-style: italic; }

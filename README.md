@@ -117,6 +117,28 @@ back to it and says on screen that it is doing so:
 ./.venv/bin/python ingest/dryrun.py 3 --snapshot
 ```
 
+## The optimiser
+
+Solved exactly as a mixed-integer program with CBC, not chosen greedily. Greedy
+selection fails here because the budget, the three-per-club cap and the formation
+rules interact -- the best squad is not the best players picked one at a time.
+
+Two modelling choices that matter more than the solver:
+
+**The objective is the starting XI, not the squad.** Bench points do not score,
+so money spent there is wasted. Told to maximise all fifteen, the model buys a
+strong bench and a weaker eleven. Told to maximise the XI, it buys the cheapest
+legal bench it can find and spends the difference on the team that plays.
+
+**The XI is chosen per gameweek.** You can reshuffle your eleven every week
+without a transfer, so a player who blanks in one gameweek should be benched that
+week rather than dragging down the squad's value across the horizon. Captaincy is
+included and also varies by gameweek, because it doubles real points.
+
+`reachable` mode then solves the same problem constrained to your actual squad,
+bank and sale values, once for each transfer count from 0 to 5, and reports the
+net after hits. That is the number that answers "is this transfer worth it".
+
 ## Transfer economy
 
 One free transfer a week, up to five bankable, -4 points per extra transfer.
@@ -167,6 +189,27 @@ supabase/migrations/
 - App: https://fpl-optimiser-rosy.vercel.app (private Vercel project, password gated)
 - Code: https://github.com/WillMcpredicts/fpl-optimiser (private)
 - Database: Supabase `fpl-optimiser`, ref `vzaieavyivsbgfsxzdbo`, eu-west-2
+
+## Why trends still do not move a score
+
+The obvious idea is that if a defence concedes headers, a header-scoring attacker
+should get an uplift against them. It has two halves and they are not equally
+true.
+
+The attacking half is real: a team's headed share of its own chances persists
+across a season (r = 0.73). The defensive half mostly is not (r = 0.28), because
+how a side concedes by body part is largely decided by who it happened to play --
+face three crossing teams and you look weak in the air.
+
+`ingest/matchup_test.py` tests the combination directly rather than relying on
+that. Walk-forward over 660 team-matches, the interaction genuinely correlates
+better with what happened (r = 0.166 vs 0.138 for the attacker alone, t = 4.31 --
+not chance). But even at its best tuning it beats attacker-alone by 0.67% and is
+still marginally worse than assuming the league average. The tuning is in-sample,
+so the true figure is lower.
+
+Detectable is not useful. The half that is real is already counted anyway: a
+player who scores headers has those headers in their own xG history.
 
 ### Why the repository is public
 

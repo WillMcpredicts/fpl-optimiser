@@ -1,5 +1,5 @@
 import Nav from "../Nav";
-import { RELIABILITY, STRUCTURAL_STATS, loadTrends } from "@/lib/trends";
+import { MATCHUP_TEST, RELIABILITY, STRUCTURAL_STATS, loadTrends } from "@/lib/trends";
 
 export const dynamic = "force-dynamic";
 
@@ -36,13 +36,95 @@ export default async function TrendsPage() {
       <div className="banner">
         <strong>These do not affect any predicted points score</strong>
         <p style={{ margin: "6px 0 0" }}>
-          The trend engine was backtested against the whole of {data.season} and did not
-          earn its place. Seven high-confidence flags in an entire season is too few to
-          conclude anything from, and medium-confidence flags predicted forward
-          performance <em>worse</em> than simply assuming the league average. The gate in{" "}
-          <code>trend_engine_gate</code> is off and every{" "}
-          <code>trend_adjustment</code> is zero. What follows is context for your own
-          judgement, not an input to the model.
+          Everything on this page is context for your own judgement. The gate in{" "}
+          <code>trend_engine_gate</code> is off and every <code>trend_adjustment</code> is
+          zero. The rest of this page explains why.
+        </p>
+      </div>
+
+      <h2 style={{ fontSize: 15, margin: "26px 0 8px" }}>What this page is asking</h2>
+      <div className="explain">
+        <p>
+          Take a specific, reasonable idea: <em>Brentford concede a lot of headed goals, so
+          a Spurs player who scores headers should get a small uplift when they play
+          Brentford.</em> That is the kind of nuance this page exists to test.
+        </p>
+        <p>
+          It has two halves, and they turn out to be very different claims.
+        </p>
+        <p>
+          <strong>&ldquo;Spurs score lots of headers&rdquo;</strong> is a real, lasting team
+          trait. Measured across last season, a team&rsquo;s headed share of its own chances
+          in the first half of the season predicts the second half well (r = 0.73). It is a
+          coached style: who they sign, how they cross, who attacks the near post.
+        </p>
+        <p>
+          <strong>&ldquo;Brentford concede lots of headers&rdquo;</strong> mostly is not. The
+          same measurement on the defensive side comes out at r = 0.28, close to noise. The
+          reason is that how a team concedes by body part is largely decided by{" "}
+          <em>who they happened to play</em>. Face three crossing sides in a row and you
+          look vulnerable to headers; face three teams who pass through the middle and you
+          look solid. That is the fixture list talking, not the defence.
+        </p>
+      </div>
+
+      <h2 style={{ fontSize: 15, margin: "26px 0 8px" }}>So I tested the combination directly</h2>
+      <div className="explain">
+        <p>
+          Reliability alone does not settle it, because the two halves might still combine
+          into something useful. So the exact idea was tested on its own terms: for every
+          team-match last season, predict the headed chances a side creates, using only
+          games played before it. Three predictors, compared on {MATCHUP_TEST.n}{" "}
+          team-matches:
+        </p>
+        <ul>
+          <li><strong>Baseline</strong> — assume the league average.</li>
+          <li><strong>Attacker only</strong> — use how header-heavy the attacking side is.</li>
+          <li><strong>Attacker × defence</strong> — the full idea, scaling by how vulnerable
+            the opponent has been to headers.</li>
+        </ul>
+        <p>
+          The full idea <em>does</em> correlate best with what actually happened
+          (r = {MATCHUP_TEST.correlation} against {MATCHUP_TEST.correlationAttackerOnly}{" "}
+          for attacker alone; t = {MATCHUP_TEST.tStatistic}, so that is not chance). The
+          instinct is sound and the direction is real.
+        </p>
+        <p>
+          But the size is tiny. Even after tuning how much weight the opponent term gets, it
+          beats attacker-alone by <strong>{MATCHUP_TEST.gainOverAttackerOnly}%</strong>, and
+          is still <strong>slightly worse than simply assuming the league average</strong>.
+          That tuning was also done on the same data it was scored against, so the true
+          figure is lower still.
+        </p>
+        <p>
+          Detectable is not the same as useful. A {MATCHUP_TEST.gainOverAttackerOnly}% edge
+          on one component of one stat, inside a projection where minutes dominate
+          everything, cannot justify moving a player&rsquo;s score. So it does not.
+        </p>
+        <p className="meta">
+          The half that <em>is</em> real is already counted: a player who scores headers has
+          those headers in their own xG history, which is what the model actually uses.
+        </p>
+      </div>
+
+      <h2 style={{ fontSize: 15, margin: "26px 0 8px" }}>Reading the tables below</h2>
+      <div className="explain">
+        <p>
+          <strong>Reliability (r)</strong> answers &ldquo;is this a lasting property of the
+          team, or an accident of who they played?&rdquo; It compares each team&rsquo;s rate
+          in the first half of the season against the second. 1.0 would mean perfectly
+          consistent; 0 means the first half tells you nothing about the second. Above ~0.5
+          is a real trait; below ~0.25 is noise.
+        </p>
+        <p>
+          <strong>Confidence</strong> on a flag is about evidence, not size. A flag is only{" "}
+          <em>high</em> if the pattern showed up in two separate, non-overlapping four-match
+          windows. One window on its own is a <em>watch</em> item — patterns appear in small
+          samples constantly, and most evaporate.
+        </p>
+        <p>
+          <strong>Sample</strong> is how many real events the rate rests on. Under five and
+          it is recorded but never promoted to a flag at all.
         </p>
       </div>
 

@@ -23,6 +23,22 @@ export const RELIABILITY: Record<string, number> = {
   box_shots_conceded_per_shot_faced: -0.31,
 };
 
+/**
+ * The matchup test: does knowing the opponent's headed weakness add anything
+ * beyond knowing the attacker's headed tendency? Walk-forward over 2025-26,
+ * 660 team-matches. Damping factor applied to the opponent term, tuned on the
+ * same data it is scored against -- so these figures flatter it, if anything.
+ */
+export const MATCHUP_TEST = {
+  n: 660,
+  correlation: 0.166,
+  correlationAttackerOnly: 0.138,
+  tStatistic: 4.31,
+  bestDamping: 0.4,
+  gainOverAttackerOnly: 0.67, // percent MAE improvement at best damping
+  gainOverBaseline: -0.1, // still worse than "assume league average"
+};
+
 export type TrendFlag = {
   team_id: number;
   stat_type: string;

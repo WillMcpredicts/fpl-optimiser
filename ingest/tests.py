@@ -125,6 +125,48 @@ def main() -> int:
     check("first choice expected to start", priors[1]["p60"] > 0.8, True)
     check("backup rarely starts", priors[2]["p60"] < 0.1, True)
 
+    print("\noptimiser respects the rules")
+    from optimiser import SQUAD_SHAPE, TEAM_LIMIT, optimise
+
+    # A synthetic league: cheap players everywhere, plus one expensive star per
+    # club, so the budget and the three-per-club cap both actually bind.
+    pool, pid = [], 0
+    for team in range(6):
+        for pos, n in ((1, 3), (2, 8), (3, 8), (4, 5)):
+            for i in range(n):
+                pid += 1
+                star = i == 0
+                pool.append({
+                    "id": pid, "name": f"p{pid}", "team_id": team, "team": f"T{team}",
+                    "pos": pos, "cost": 120 if star else 40,
+                    "per_gw": {1: 9.0 if star else 1.0, 2: 9.0 if star else 1.0},
+                    "total": 18.0 if star else 2.0,
+                })
+    res = optimise(pool, [1, 2], budget=1000)
+    check("solver finds an optimum", res is not None, True)
+    if res:
+        squad = res["squad"]
+        check("fifteen players", len(squad), 15)
+        for pos, want in SQUAD_SHAPE.items():
+            check(f"position {pos} count", sum(1 for p in squad if p["pos"] == pos), want)
+        from collections import Counter
+        per_club = Counter(p["team_id"] for p in squad)
+        check("three-per-club respected", max(per_club.values()) <= TEAM_LIMIT, True)
+        check("inside budget", res["squad_cost"] <= 1000, True)
+        for gw in (1, 2):
+            starters = res["roles"][gw]["starters"]
+            by_pos = Counter(next(p["pos"] for p in squad if p["id"] == i) for i in starters)
+            check(f"GW{gw}: eleven starters", len(starters), 11)
+            check(f"GW{gw}: one keeper", by_pos[1], 1)
+            check(f"GW{gw}: 3-5 defenders", 3 <= by_pos[2] <= 5, True)
+            check(f"GW{gw}: captain is a starter",
+                  res["roles"][gw]["captain"] in starters, True)
+        # Bench points do not score, so the optimiser must not spend on the bench.
+        starters_gw1 = set(res["roles"][1]["starters"])
+        bench_cost = sum(p["cost"] for p in squad if p["id"] not in starters_gw1)
+        xi_cost = sum(p["cost"] for p in squad if p["id"] in starters_gw1)
+        check("bench is cheaper than the XI", bench_cost < xi_cost, True)
+
     print()
     if failures:
         print(f"{len(failures)} failure(s):")

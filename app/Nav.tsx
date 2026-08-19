@@ -3,6 +3,7 @@ export default function Nav({ current }: { current: string }) {
     ["/", "Predicted points"],
     ["/squad", "Squad"],
     ["/transfers", "Transfers"],
+    ["/optimiser", "Optimiser"],
     ["/trends", "Trends"],
   ];
   return (
