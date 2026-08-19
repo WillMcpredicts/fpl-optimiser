@@ -79,6 +79,14 @@ PostgREST caches the schema, so a fresh column needs
 `notify pgrst, 'reload schema';` before an upsert can see it; and the database
 password is not recoverable, only resettable, from Settings -> Database.
 
+## Security note
+
+Next.js is pinned at 16.3.1 or later deliberately. Version 15.1.6 carries
+CVE-2025-29927, an authorization bypass where a crafted `x-middleware-subrequest`
+header skips middleware entirely -- and this app's password gate *is* middleware,
+so the gate was bypassable. Vercel refuses to deploy the vulnerable version,
+which is how it was caught. Do not downgrade below 16.3.1.
+
 ## Setup
 
 ```bash
@@ -152,6 +160,37 @@ supabase/migrations/
 .github/workflows/
   ingest.yml    Scheduled pipeline, 06:15 and 17:45 UTC
   checks.yml    Typecheck, build, and the unit suite on every push
+```
+
+## Where it runs
+
+- App: https://fpl-optimiser-rosy.vercel.app (private Vercel project, password gated)
+- Code: https://github.com/WillMcpredicts/fpl-optimiser (private)
+- Database: Supabase `fpl-optimiser`, ref `vzaieavyivsbgfsxzdbo`, eu-west-2
+
+### Known blocker: GitHub-hosted runners
+
+The scheduled workflow is registered and correct, but every run so far ends with
+`The job was not acquired by Runner of type hosted even after multiple attempts`
+-- GitHub never allocates a machine, and the job is cancelled after ~15 minutes.
+No run on this account has ever succeeded. This is account-level runner
+availability, not the workflow: the YAML parses, the run queues, and no step
+executes.
+
+Three ways out, in order of least effort:
+
+1. Make the repo public. Public repositories get free unlimited hosted runners.
+   Nothing secret is in the code -- credentials live in Actions secrets and
+   Vercel env vars, neither of which becomes public.
+2. Add a payment method / complete verification on the GitHub account, which is
+   what usually unblocks hosted runners on a new free account.
+3. Run the pipeline locally on a schedule (`launchd` on macOS) against the same
+   Supabase project. Same result, no GitHub involvement.
+
+Until one of those, run it by hand -- it takes about a minute:
+
+```bash
+cd ~/fpl-optimiser/ingest && ../.venv/bin/python run.py all
 ```
 
 ## Automation
