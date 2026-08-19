@@ -48,8 +48,10 @@ export default async function Home() {
         <>
           <p className="meta" style={{ marginTop: 0 }}>
             Every score is <code>base + fixture + trend</code>. Click a player to see the
-            breakdown. Trend adjustments are zero until the trend engine passes its
-            backtest and you sign off the thresholds.
+            breakdown. The trend term is opponent generosity to that position, worth
+            +0.46% on held-out data over the fixture adjustment alone, capped at 15% and
+            never applied to forwards. Switch the view to see where points come from, or
+            value and price.
           </p>
           <PlayerTable data={data} />
         </>
