@@ -24,7 +24,7 @@ async function loadOptions() {
       `season=eq.${SEASON}&select=player_id,gw,final_score`,
     ),
   ]);
-  const gws = [...new Set(predictions.map((p) => p.gw))].sort((a, b) => a - b).slice(0, 3);
+  const gws = [...new Set(predictions.map((p) => p.gw))].sort((a, b) => a - b);
   const totals = new Map<number, number>();
   for (const p of predictions) {
     if (gws.includes(p.gw)) {

@@ -80,7 +80,7 @@ def bracket_percentile(player: dict, universe: list[dict]) -> float | None:
     return round(worse / len(peers), 3)
 
 
-def load_context(season: str, horizon: int = 3):
+def load_context(season: str, horizon: int = 6):
     squad_rows = select("my_squad", f"season=eq.{season}&is_current=is.true&select=*")
     if not squad_rows:
         raise RuntimeError(
@@ -175,7 +175,7 @@ def candidates_for(
     return results
 
 
-def plan(season: str = CURRENT_SEASON, horizon: int = 3, top_n: int = 25) -> list[dict]:
+def plan(season: str = CURRENT_SEASON, horizon: int = 6, top_n: int = 25) -> list[dict]:
     """Ranked single-transfer options, plus a coherent multi-transfer plan.
 
     Two separate questions, kept separate on purpose:
@@ -344,7 +344,7 @@ def plan(season: str = CURRENT_SEASON, horizon: int = 3, top_n: int = 25) -> lis
     return rows
 
 
-def squad_report(season: str = CURRENT_SEASON, horizon: int = 3) -> None:
+def squad_report(season: str = CURRENT_SEASON, horizon: int = 6) -> None:
     """Console view of the squad, for checking without the UI."""
     squad_row, picks, universe, gws = load_context(season, horizon)
     squad = build_squad_view(picks, universe)

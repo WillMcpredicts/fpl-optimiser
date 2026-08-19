@@ -171,7 +171,7 @@ export async function loadSquad(): Promise<SquadData> {
       ),
     ]);
 
-    const gameweeks = [...new Set(predictions.map((p) => p.gw))].sort((a, b) => a - b).slice(0, 3);
+    const gameweeks = [...new Set(predictions.map((p) => p.gw))].sort((a, b) => a - b);
     const pts = new Map<number, Map<number, number>>();
     for (const p of predictions) {
       if (!gameweeks.includes(p.gw)) continue;

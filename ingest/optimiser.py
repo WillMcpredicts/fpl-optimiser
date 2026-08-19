@@ -252,7 +252,7 @@ def score_existing(pool: list[dict], gws: list[int], owned: set[int]) -> float:
 
 def main() -> None:
     season = CURRENT_SEASON
-    horizon = 3
+    horizon = 6
     with Run("optimiser", season) as run:
         pool, gws = load_players(season, horizon)
         log(f"  {len(pool)} selectable players, gameweeks {gws}")
