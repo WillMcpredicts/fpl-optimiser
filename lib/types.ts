@@ -55,6 +55,17 @@ export type PlayerRow = {
   status: string | null;
   news: string | null;
   selected_by_percent: number | null;
+  penalties_order: number | null;
+  corners_fk_order: number | null;
+  direct_fk_order: number | null;
+  cost_change_event: number | null;
+  cost_change_start: number | null;
+  transfers_in_event: number | null;
+  transfers_out_event: number | null;
+  form: number | null;
+  points_per_game: number | null;
+  /** Points by source, summed across the horizon. */
+  sources: Record<string, number>;
   /** Per-gameweek final scores, keyed by gameweek. */
   byGw: Record<number, Prediction>;
   /** Sum of final_score across the projected horizon. */

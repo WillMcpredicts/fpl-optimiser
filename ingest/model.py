@@ -21,6 +21,7 @@ from collections import defaultdict
 from common import Run, log, select, upsert
 from config import CURRENT_SEASON, VAASTAV_SEASONS
 import opponent_strength
+import set_pieces
 from rates import build_player_rates
 from scoring import (
     APPEARANCE_LONG,
@@ -47,7 +48,9 @@ from scoring import (
 )
 
 MODEL_VERSION = "phase1-2026-08"
-HORIZON = 3  # gameweeks projected ahead
+# Six gameweeks: three is right for a single transfer, but wildcard and chip
+# planning need to see a fixture swing coming.
+HORIZON = 6
 
 # How a player's FPL status maps to the chance they are available at all.
 STATUS_AVAILABILITY = {
@@ -87,7 +90,13 @@ def team_concede_lambda(team_elo, opponent_elo, is_home: bool) -> float:
     return LEAGUE_AVG_GOALS_PER_TEAM * opp_attack * team_defence * venue
 
 
-def score_fixture(rates: dict, avail: float, attack_mult: float, concede_lam: float) -> dict:
+def score_fixture(
+    rates: dict,
+    avail: float,
+    attack_mult: float,
+    concede_lam: float,
+    penalty_per_90: float = 0.0,
+) -> dict:
     """Expected points for one player in one fixture, broken into its parts."""
     pos = rates["position"]
     p60 = clamp(rates["p60"] * avail, 0.0, 1.0)
@@ -117,8 +126,14 @@ def score_fixture(rates: dict, avail: float, attack_mult: float, concede_lam: fl
 
     bonus = rates["bonus90"] * n90
     cards = rates["yellow90"] * n90 * YELLOW_POINTS
+    # Only non-zero where penalty duty has CHANGED; otherwise the player's own
+    # scoring rate already contains it and this would double-count.
+    penalties = penalty_per_90 * n90
 
-    total = appearance + goals + assists + clean_sheet + conceded + saves + defcon + bonus + cards
+    total = (
+        appearance + goals + assists + clean_sheet + conceded
+        + saves + defcon + bonus + cards + penalties
+    )
     return {
         "total": total,
         "appearance": appearance,
@@ -130,6 +145,7 @@ def score_fixture(rates: dict, avail: float, attack_mult: float, concede_lam: fl
         "defcon": defcon,
         "bonus": bonus,
         "cards": cards,
+        "penalties": penalties,
         "expected_minutes": minutes,
         "p60": p60,
         "p_any": p_any,
@@ -245,6 +261,15 @@ def build_predictions(
     elo_by_team = {t["id"]: t.get("elo") for t in teams}
     rates_by_player = build_player_rates(players, rows_by_code, elo_by_team)
 
+    # Penalty duty as it stands now, against the duty embedded in each player's
+    # scoring history. Keyed by the stable code, since ids move every summer.
+    prior_penalty_by_code: dict[int, int | None] = {}
+    for prior_season in VAASTAV_SEASONS:
+        for row in select(
+            "players", f"season=eq.{prior_season}&select=code,penalties_order"
+        ):
+            prior_penalty_by_code.setdefault(row["code"], row.get("penalties_order"))
+
     opponent_factors = opponent_factors or {}
     gate = gate or {"enabled": False, "max_adjustment": 0.15}
     trends_live = bool(gate.get("enabled"))
@@ -265,6 +290,11 @@ def build_predictions(
         for p in players:
             rates = rates_by_player[p["id"]]
             avail, avail_reason = availability(p)
+            penalty_per_90, penalty_change = set_pieces.adjustment(
+                rates["position"],
+                p.get("penalties_order"),
+                prior_penalty_by_code.get(p["code"]),
+            )
             team_fixtures = by_team.get(p["team_id"], [])
 
             base_total = 0.0
@@ -279,14 +309,18 @@ def build_predictions(
                 opponent = team_by_id.get(opponent_id, {})
 
                 # Neutral reference: average opponent, neutral venue.
-                base = score_fixture(rates, avail, 1.0, LEAGUE_AVG_GOALS_PER_TEAM)
+                base = score_fixture(
+                    rates, avail, 1.0, LEAGUE_AVG_GOALS_PER_TEAM, penalty_per_90
+                )
                 attack_mult = elo_multiplier(team.get("elo"), opponent.get("elo")) * (
                     HOME_ATTACK_FACTOR if is_home else AWAY_ATTACK_FACTOR
                 )
                 concede_lam = team_concede_lambda(
                     team.get("elo"), opponent.get("elo"), is_home
                 )
-                real = score_fixture(rates, avail, attack_mult, concede_lam)
+                real = score_fixture(
+                    rates, avail, attack_mult, concede_lam, penalty_per_90
+                )
 
                 # How generous this opponent is to this position, in FPL points.
                 # Damped and capped in opponent_strength, capped again by the
@@ -352,6 +386,11 @@ def build_predictions(
                         "availability": round(avail, 3),
                         "availability_reason": avail_reason,
                         "depth_rank": rates["depth_rank"],
+                        "penalty_order": p.get("penalties_order"),
+                        "penalty_duty": penalty_change,
+                        "penalty_points_per_90": round(penalty_per_90, 3),
+                        "set_piece_corners_order": p.get("corners_fk_order"),
+                        "set_piece_direct_fk_order": p.get("direct_fk_order"),
                         "depth_prior_p60": rates["depth_prior_p60"],
                         "team_prior_scale": rates["team_prior_scale"],
                         "fixtures_this_gw": len(team_fixtures),

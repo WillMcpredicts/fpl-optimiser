@@ -120,6 +120,16 @@ def ingest_players(season: str) -> int:
             "expected_goals": to_float(r.get("expected_goals")),
             "expected_assists": to_float(r.get("expected_assists")),
             "expected_goals_conceded": to_float(r.get("expected_goals_conceded")),
+            # Set-piece duties, so the penalty premium can be measured on past
+            # seasons rather than assumed. Note the archive stores an
+            # END-OF-SEASON snapshot, so treat it as approximate for mid-season
+            # gameweeks -- duties do change hands.
+            "penalties_order": to_int(r.get("penalties_order"), None),
+            "penalties_text": r.get("penalties_text") or None,
+            "direct_fk_order": to_int(r.get("direct_freekicks_order"), None),
+            "corners_fk_order": to_int(
+                r.get("corners_and_indirect_freekicks_order"), None
+            ),
         }
         for r in rows
         if r.get("id") and r.get("code")

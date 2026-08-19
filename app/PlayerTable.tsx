@@ -100,13 +100,27 @@ function Breakdown({ p }: { p: Prediction }) {
   );
 }
 
-type SortKey = "total" | "next" | "price" | "value" | "minutes";
+type SortKey = "total" | "next" | "price" | "value" | "minutes" | "form" | "owned" | "differential";
+type ViewKey = "projection" | "sources" | "value";
+
+const SOURCE_COLUMNS: [string, string][] = [
+  ["goals", "Goals"],
+  ["assists", "Assists"],
+  ["clean_sheet", "Clean sheets"],
+  ["defcon", "DefCon"],
+  ["bonus", "Bonus"],
+  ["saves", "Saves"],
+  ["appearance", "Appearance"],
+  ["conceded", "Conceded"],
+  ["penalties", "Pen duty"],
+];
 
 export default function PlayerTable({ data }: { data: Dataset }) {
   const [query, setQuery] = useState("");
   const [position, setPosition] = useState("ALL");
   const [maxPrice, setMaxPrice] = useState("");
   const [sort, setSort] = useState<SortKey>("total");
+  const [view, setView] = useState<ViewKey>("projection");
   const [open, setOpen] = useState<number | null>(null);
 
   const gws = data.gameweeks;
@@ -135,6 +149,14 @@ export default function PlayerTable({ data }: { data: Dataset }) {
           return p.price > 0 ? p.total / p.price : 0;
         case "minutes":
           return p.byGw[firstGw]?.expected_minutes ?? 0;
+        case "form":
+          return Number(p.form ?? 0);
+        case "owned":
+          return Number(p.selected_by_percent ?? 0);
+        case "differential":
+          // High projection, low ownership: how you gain rank rather than
+          // track it. Ownership is floored so a 0% player is not infinite.
+          return p.total / Math.max(0.5, Number(p.selected_by_percent ?? 0));
         default:
           return p.total;
       }
@@ -165,11 +187,19 @@ export default function PlayerTable({ data }: { data: Dataset }) {
           onChange={(e) => setMaxPrice(e.target.value)}
           style={{ width: 90 }}
         />
+        <select value={view} onChange={(e) => setView(e.target.value as ViewKey)}>
+          <option value="projection">View: projection</option>
+          <option value="sources">View: where the points come from</option>
+          <option value="value">View: value, price &amp; ownership</option>
+        </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
           <option value="total">Sort: total over {gws.length} GWs</option>
           <option value="next">Sort: next GW</option>
           <option value="value">Sort: points per £m</option>
+          <option value="differential">Sort: differential (points vs ownership)</option>
           <option value="minutes">Sort: expected minutes</option>
+          <option value="form">Sort: form</option>
+          <option value="owned">Sort: ownership</option>
           <option value="price">Sort: price</option>
         </select>
         <span className="meta">{rows.length} players</span>
@@ -183,16 +213,41 @@ export default function PlayerTable({ data }: { data: Dataset }) {
               <th className="left">Team</th>
               <th className="left">Pos</th>
               <th>£</th>
-              {gws.map((gw) => (
-                <th key={gw}>GW{gw}</th>
-              ))}
-              <th>Total</th>
-              <th>Base</th>
-              <th>Fixture</th>
-              <th>Trend</th>
-              <th>xMins</th>
-              <th>Own%</th>
-              <th className="left">Confidence</th>
+              {view === "projection" ? (
+                <>
+                  {gws.map((gw) => (
+                    <th key={gw}>GW{gw}</th>
+                  ))}
+                  <th>Total</th>
+                  <th>Base</th>
+                  <th>Fixture</th>
+                  <th>Trend</th>
+                  <th>xMins</th>
+                  <th>Own%</th>
+                  <th className="left">Confidence</th>
+                </>
+              ) : null}
+              {view === "sources" ? (
+                <>
+                  <th>Total</th>
+                  {SOURCE_COLUMNS.map(([k, label]) => (
+                    <th key={k}>{label}</th>
+                  ))}
+                </>
+              ) : null}
+              {view === "value" ? (
+                <>
+                  <th>Total</th>
+                  <th>Pts per £m</th>
+                  <th>Own%</th>
+                  <th>Differential</th>
+                  <th>Form</th>
+                  <th>PPG</th>
+                  <th>Δ price</th>
+                  <th>Net transfers</th>
+                  <th className="left">Set pieces</th>
+                </>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -226,24 +281,73 @@ export default function PlayerTable({ data }: { data: Dataset }) {
                       <span className="pos">{POSITION_NAMES[p.position]}</span>
                     </td>
                     <td>{p.price.toFixed(1)}</td>
-                    {gws.map((gw) => (
-                      <td key={gw}>{num(Number(p.byGw[gw]?.final_score ?? 0))}</td>
-                    ))}
-                    <td>
-                      <strong>{num(p.total)}</strong>
-                    </td>
-                    <td className="meta">{num(base)}</td>
-                    <td><Delta value={fix} /></td>
-                    <td><Delta value={trend} /></td>
-                    <td>{num(Number(next?.expected_minutes ?? 0), 0)}</td>
-                    <td className="meta">{p.selected_by_percent ?? "-"}</td>
-                    <td className="left">
-                      <span className={`pill ${conf}`}>{conf}</span>
-                    </td>
+                    {view === "projection" ? (
+                      <>
+                        {gws.map((gw) => (
+                          <td key={gw}>{num(Number(p.byGw[gw]?.final_score ?? 0))}</td>
+                        ))}
+                        <td><strong>{num(p.total)}</strong></td>
+                        <td className="meta">{num(base)}</td>
+                        <td><Delta value={fix} /></td>
+                        <td><Delta value={trend} /></td>
+                        <td>{num(Number(next?.expected_minutes ?? 0), 0)}</td>
+                        <td className="meta">{p.selected_by_percent ?? "-"}</td>
+                        <td className="left">
+                          <span className={`pill ${conf}`}>{conf}</span>
+                        </td>
+                      </>
+                    ) : null}
+                    {view === "sources" ? (
+                      <>
+                        <td><strong>{num(p.total)}</strong></td>
+                        {SOURCE_COLUMNS.map(([k]) => {
+                          const v = p.sources[k] ?? 0;
+                          const share = p.total > 0 ? v / p.total : 0;
+                          return (
+                            <td
+                              key={k}
+                              className={Math.abs(v) < 0.005 ? "meta" : ""}
+                              title={`${(share * 100).toFixed(0)}% of projected points`}
+                            >
+                              {num(v)}
+                            </td>
+                          );
+                        })}
+                      </>
+                    ) : null}
+                    {view === "value" ? (
+                      <>
+                        <td><strong>{num(p.total)}</strong></td>
+                        <td>{p.price > 0 ? num(p.total / p.price) : "-"}</td>
+                        <td className="meta">{p.selected_by_percent ?? "-"}</td>
+                        <td>
+                          {num(p.total / Math.max(0.5, Number(p.selected_by_percent ?? 0)))}
+                        </td>
+                        <td className="meta">{p.form ?? "-"}</td>
+                        <td className="meta">{p.points_per_game ?? "-"}</td>
+                        <td>
+                          <Delta value={Number(p.cost_change_start ?? 0) / 10} />
+                        </td>
+                        <td className="meta">
+                          {(
+                            (Number(p.transfers_in_event ?? 0) -
+                              Number(p.transfers_out_event ?? 0)) / 1000
+                          ).toFixed(0)}
+                          k
+                        </td>
+                        <td className="left meta">
+                          {p.penalties_order === 1 ? (
+                            <span className="pill high">pens</span>
+                          ) : null}{" "}
+                          {p.direct_fk_order === 1 ? <span className="pill medium">FK</span> : null}{" "}
+                          {p.corners_fk_order === 1 ? <span className="pill medium">corners</span> : null}
+                        </td>
+                      </>
+                    ) : null}
                   </tr>
                   {isOpen && next ? (
                     <tr>
-                      <td colSpan={12 + gws.length} className="left">
+                      <td colSpan={14 + gws.length} className="left">
                         {p.news ? (
                           <div className="meta" style={{ marginBottom: 6 }}>
                             <strong className="flag">News:</strong> {p.news}

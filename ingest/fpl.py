@@ -73,6 +73,28 @@ def build_players(boot: dict, season: str) -> list[dict]:
             "expected_assists": to_float(e.get("expected_assists")),
             "expected_goals_conceded": to_float(e.get("expected_goals_conceded")),
             "defensive_contribution": to_int(e.get("defensive_contribution")),
+            # Set-piece duties. `penalties_order` 1 means first-choice taker,
+            # which is worth more than almost any other single fact about a
+            # player: they take the highest-expected-value shot in football.
+            "penalties_order": to_int(e.get("penalties_order"), None),
+            "penalties_text": e.get("penalties_text") or None,
+            "direct_fk_order": to_int(e.get("direct_freekicks_order"), None),
+            "corners_fk_order": to_int(
+                e.get("corners_and_indirect_freekicks_order"), None
+            ),
+            # Price movement. Compounds over a season into real budget.
+            "cost_change_event": to_int(e.get("cost_change_event")),
+            "cost_change_start": to_int(e.get("cost_change_start")),
+            "transfers_in_event": to_int(e.get("transfers_in_event")),
+            "transfers_out_event": to_int(e.get("transfers_out_event")),
+            "form": to_float(e.get("form")),
+            "points_per_game": to_float(e.get("points_per_game")),
+            "ict_index": to_float(e.get("ict_index")),
+            "expected_goals_per_90": to_float(e.get("expected_goals_per_90")),
+            "expected_assists_per_90": to_float(e.get("expected_assists_per_90")),
+            "defensive_contribution_per_90": to_float(
+                e.get("defensive_contribution_per_90")
+            ),
         }
         for e in boot["elements"]
     ]

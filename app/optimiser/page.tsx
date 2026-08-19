@@ -117,6 +117,103 @@ export default async function OptimiserPage() {
         </p>
       </div>
 
+      {(() => {
+        const roles = data.best?.detail.roles ?? data.dream?.detail.roles ?? {};
+        const squad = data.best?.detail.squad ?? data.dream?.detail.squad ?? [];
+        const byId = new Map(squad.map((p) => [p.player_id, p]));
+        const caps = gws
+          .map((gw) => {
+            const cid = roles[String(gw)]?.captain;
+            const p = cid ? byId.get(cid) : null;
+            return p ? { gw, name: p.name, team: p.team, pts: p.per_gw[String(gw)] ?? 0 } : null;
+          })
+          .filter(Boolean) as { gw: number; name: string; team: string; pts: number }[];
+        if (!caps.length) return null;
+        return (
+          <>
+            <h2 style={{ fontSize: 15, margin: "22px 0 8px" }}>Captain, week by week</h2>
+            <p className="meta" style={{ marginTop: 0 }}>
+              The captain doubles, so this is the highest-leverage call you make each week —
+              and it changes, because fixtures do. Figures are the extra points captaincy
+              adds on top of the player already scoring.
+            </p>
+            <div className="table-scroll" style={{ marginBottom: 26 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>GW</th>
+                    <th className="left">Captain</th>
+                    <th className="left">Team</th>
+                    <th>Their projection</th>
+                    <th>Extra from the armband</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {caps.map((c) => (
+                    <tr key={c.gw}>
+                      <td>{c.gw}</td>
+                      <td className="left"><strong>{c.name}</strong></td>
+                      <td className="left">{c.team}</td>
+                      <td>{c.pts.toFixed(2)}</td>
+                      <td className="pos-val">+{c.pts.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        );
+      })()}
+
+      {data.chips.length > 0 ? (
+        <>
+          <h2 style={{ fontSize: 15, margin: "22px 0 8px" }}>Chips</h2>
+          <p className="meta" style={{ marginTop: 0 }}>
+            Bench Boost is worth what your bench scores; Triple Captain is worth one extra
+            copy of your best single score. Wildcard and Free Hit are not planned here —
+            their value depends on what you would transfer to, which is the optimiser&rsquo;s
+            job, and pricing them from the current squad would mislead.
+          </p>
+          <div className="table-scroll" style={{ marginBottom: 26 }}>
+            <table>
+              <thead>
+                <tr>
+                  <th className="left">Chip</th>
+                  <th>GW</th>
+                  <th>Worth</th>
+                  <th className="left">What you would be playing</th>
+                  <th className="left">Best week?</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.chips
+                  .slice()
+                  .sort((a, b) => a.chip.localeCompare(b.chip) || a.gw - b.gw)
+                  .map((c) => (
+                    <tr key={`${c.chip}-${c.gw}`} className={c.is_best ? "plan-row" : ""}>
+                      <td className="left">
+                        {c.chip === "bboost" ? "Bench Boost" : "Triple Captain"}
+                      </td>
+                      <td>{c.gw}</td>
+                      <td><strong>+{Number(c.value_points).toFixed(2)}</strong></td>
+                      <td className="left meta">
+                        {c.chip === "3xc"
+                          ? `${c.detail.captain ?? "—"} (${c.detail.team ?? "—"})`
+                          : (c.detail.bench ?? [])
+                              .map((b) => `${b.name} ${b.points.toFixed(1)}`)
+                              .join(", ")}
+                      </td>
+                      <td className="left">
+                        {c.is_best ? <span className="pill high">best</span> : <span className="meta">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
       <h2 style={{ fontSize: 15, margin: "22px 0 8px" }}>How far is it worth going?</h2>
       <p className="meta" style={{ marginTop: 0 }}>
         Each row is a separate exact solve: the best squad reachable with at most that many

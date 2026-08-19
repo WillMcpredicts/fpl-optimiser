@@ -7,6 +7,7 @@
     python ingest/run.py predict   # recompute predicted points
     python ingest/run.py plan      # recompute transfer suggestions
     python ingest/run.py optimise  # best reachable squad (MILP)
+    python ingest/run.py chips     # Bench Boost and Triple Captain timing
     python ingest/run.py shots     # FPL-Core-Insights shot data
     python ingest/run.py trends    # rate stats and trend flags for the live season
     python ingest/run.py backtest  # re-run the trend backtest
@@ -35,7 +36,7 @@ def main() -> int:
     step = sys.argv[1] if len(sys.argv) > 1 else "all"
     known = {
         "all", "full", "history", "fpl", "predict", "plan",
-        "optimise", "shots", "trends", "backtest",
+        "optimise", "chips", "shots", "trends", "backtest",
     }
     if step not in known:
         print(__doc__)
@@ -90,6 +91,11 @@ def main() -> int:
         import optimiser
 
         optimiser.main()
+
+    if step in ("all", "full", "chips"):
+        import chips
+
+        chips.main()
 
     return 0
 

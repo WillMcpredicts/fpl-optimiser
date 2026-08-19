@@ -16,6 +16,15 @@ type PlayerRecord = {
   status: string | null;
   news: string | null;
   selected_by_percent: number | null;
+  penalties_order: number | null;
+  corners_fk_order: number | null;
+  direct_fk_order: number | null;
+  cost_change_event: number | null;
+  cost_change_start: number | null;
+  transfers_in_event: number | null;
+  transfers_out_event: number | null;
+  form: number | null;
+  points_per_game: number | null;
 };
 
 type TeamRecord = { id: number; short_name: string; elo_source: string | null };
@@ -49,9 +58,15 @@ function assemble(
 
     const byGw: Record<number, Prediction> = {};
     let total = 0;
+    // Points by source, summed across the horizon, so the table can answer
+    // "who scores from DefCon?" rather than only showing one player at a time.
+    const sources: Record<string, number> = {};
     for (const p of preds) {
       byGw[p.gw] = p;
       total += Number(p.final_score);
+      for (const [k, v] of Object.entries(p.confidence_breakdown?.components ?? {})) {
+        sources[k] = (sources[k] ?? 0) + Number(v);
+      }
     }
     rows.push({
       player_id: player.id,
@@ -62,6 +77,16 @@ function assemble(
       status: player.status,
       news: player.news,
       selected_by_percent: player.selected_by_percent,
+      penalties_order: player.penalties_order,
+      corners_fk_order: player.corners_fk_order,
+      direct_fk_order: player.direct_fk_order,
+      cost_change_event: player.cost_change_event,
+      cost_change_start: player.cost_change_start,
+      transfers_in_event: player.transfers_in_event,
+      transfers_out_event: player.transfers_out_event,
+      form: player.form,
+      points_per_game: player.points_per_game,
+      sources,
       byGw,
       total,
       nextGw: gameweeks[0] ?? 0,
@@ -114,7 +139,7 @@ export async function loadDataset(): Promise<Dataset> {
       const [players, teams, predictions] = await Promise.all([
         selectRows<PlayerRecord>(
           "players",
-          `season=eq.${SEASON}&select=id,web_name,team_id,element_type,now_cost,status,news,selected_by_percent`,
+          `season=eq.${SEASON}&select=*`,
         ),
         selectRows<TeamRecord>(
           "teams",

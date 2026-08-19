@@ -32,6 +32,19 @@ export type OptimalRow = {
   };
 };
 
+export type ChipPlan = {
+  chip: "bboost" | "3xc";
+  gw: number;
+  value_points: number;
+  is_best: boolean;
+  detail: {
+    captain?: string | null;
+    team?: string | null;
+    points?: number;
+    bench?: { name: string; team: string; points: number }[];
+  };
+};
+
 export type OptimalData = {
   configured: boolean;
   error: string | null;
@@ -41,6 +54,7 @@ export type OptimalData = {
   baseline: number;
   freeTransfers: number;
   best: OptimalRow | null;
+  chips: ChipPlan[];
   playerNames: Record<number, { name: string; team: string; cost: number; pos: number }>;
 };
 
@@ -54,12 +68,13 @@ export async function loadOptimal(): Promise<OptimalData> {
     baseline: 0,
     freeTransfers: 1,
     best: null,
+    chips: [],
     playerNames: {},
   };
   if (!isConfigured()) return { ...empty, error: "Supabase is not configured." };
 
   try {
-    const [rows, players, teams] = await Promise.all([
+    const [rows, players, teams, chips] = await Promise.all([
       selectRows<OptimalRow>(
         "optimal_squads",
         `season=eq.${SEASON}&select=*&order=transfers_allowed.asc`,
@@ -69,8 +84,9 @@ export async function loadOptimal(): Promise<OptimalData> {
         `season=eq.${SEASON}&select=id,web_name,team_id,now_cost,element_type`,
       ),
       selectRows<{ id: number; short_name: string }>("teams", `season=eq.${SEASON}&select=id,short_name`),
+      selectRows<ChipPlan>("chip_plans", `season=eq.${SEASON}&select=*&order=gw`),
     ]);
-    if (!rows.length) return empty;
+    if (!rows.length) return { ...empty, chips };
 
     const teamName = new Map(teams.map((t) => [t.id, t.short_name]));
     const playerNames: OptimalData["playerNames"] = {};
@@ -103,6 +119,7 @@ export async function loadOptimal(): Promise<OptimalData> {
       baseline: Number(reachable[0]?.detail.baseline_xi_points ?? 0),
       freeTransfers: reachable[0]?.detail.free_transfers ?? 1,
       best,
+      chips,
       playerNames,
     };
   } catch (err) {

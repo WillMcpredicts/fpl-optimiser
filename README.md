@@ -190,6 +190,35 @@ supabase/migrations/
 - Code: https://github.com/WillMcpredicts/fpl-optimiser (private)
 - Database: Supabase `fpl-optimiser`, ref `vzaieavyivsbgfsxzdbo`, eu-west-2
 
+## Set pieces and penalties
+
+Penalty order, direct free-kick order and corner order are ingested. Penalty
+duty only adjusts a score where it has CHANGED, and the reason is measured:
+first-choice takers out-scored their own prior rate by just +0.05 points per
+appearance, and the best-fitting blanket bonus was zero. A taker's history
+already contains the penalties they took, so a bonus on top double-counts.
+
+The real gap is a change of duty. 92 penalties across 380 matches in 2025-26 at
+82% conversion is 0.121 per team-match, so a newly-appointed taker is worth
+about +0.51 pts/90 (MID) or +0.41 (FWD) that their history does not show. Twelve
+players gained first-choice duty for 2026-27 and one lost it.
+
+## Chips
+
+Bench Boost is valued as what the bench actually projects that week; Triple
+Captain as one extra copy of the best single score. Wildcard and Free Hit are
+deliberately not planned: their value depends on what you would transfer to,
+which is the optimiser's job.
+
+## Team weaknesses by role
+
+Tested and rejected. "Left wingers score more against Fulham" needs role within
+position, which FPL does not publish, so role was derived from where each player
+actually shoots. Split-half reliability came out at 0.41 (left), 0.41 (central)
+and 0.30 (right) -- all weaker than the position-based version already live.
+Classification is also thin: 219 of 274 players read as "central" because
+wingers still shoot from central areas.
+
 ## The trend that does move a score
 
 How generous each team is to each position, in FPL points. Face a dominant
