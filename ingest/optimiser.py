@@ -39,6 +39,18 @@ STARTERS = 11
 HIT_COST = 4
 SOLVE_SECONDS = 120
 
+# Bench points are not worthless: when a starter records no minutes, FPL
+# substitutes the highest-ranked bench player who did play. Measured on 2025-26,
+# a regular starter blanks 14.1% of the time, so in an XI of eleven the bench
+# slots are used with probability 0.81, 0.47 and 0.19 -- about 1.48 slots per
+# gameweek. Averaged over four bench places that is a 0.37 chance any given
+# bench player features.
+#
+# Without this the optimiser treats the bench as free and buys the cheapest
+# legal players, which strengthens the XI by a fraction of a point and throws
+# away the cover that actually pays when someone is dropped or injured.
+AUTOSUB_WEIGHT = 0.37
+
 
 def load_players(season: str, horizon: int) -> tuple[list[dict], list[int]]:
     players = select("players", f"season=eq.{season}&select=*")
@@ -104,9 +116,12 @@ def optimise(
     start = pulp.LpVariable.dicts("start", (ids, gws), cat="Binary")
     capt = pulp.LpVariable.dicts("capt", (ids, gws), cat="Binary")
 
-    # Objective: starting points, with the captain counted twice.
+    # Objective: starting points with the captain counted twice, plus the
+    # expected value of the bench via auto-substitution. `squad - start` is 1
+    # exactly when a squad member is benched that week.
     prob += pulp.lpSum(
-        by_id[i]["per_gw"].get(gw, 0.0) * (start[i][gw] + capt[i][gw])
+        by_id[i]["per_gw"].get(gw, 0.0)
+        * (start[i][gw] + capt[i][gw] + AUTOSUB_WEIGHT * (squad[i] - start[i][gw]))
         for i in ids
         for gw in gws
     )

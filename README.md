@@ -316,6 +316,26 @@ A squad entered by hand for a later gameweek is never overwritten: manual entry
 is the only way to record a team before a deadline, so it is always the more
 current statement of intent.
 
+## Why the bench is not free
+
+Only eleven play, so the objective is the starting XI -- but treating the bench
+as worthless is wrong, and the data says so twice.
+
+FPL auto-substitutes when a starter records no minutes. Measured on 2025-26, a
+regular starter blanks **14.1%** of the time, so across an XI of eleven the bench
+slots are used with probability 0.81, 0.47 and 0.19 -- about 1.48 substitutions a
+gameweek. The optimiser weights bench points by 0.37, the average chance any
+given bench player features.
+
+Before that weighting it bought four players at £4.0-4.5m who never appeared,
+spending £17.5m on nothing to gain **+2.1 XI points over six gameweeks (0.7%)**.
+Against roughly nine auto-substitution events in the same period, each one
+landing on a player worth about a point instead of four or five, that trade is
+clearly bad.
+
+With the weighting the optimal squad has no passengers -- which is exactly what
+the retrospective found for a completed season, from entirely separate data.
+
 ## What last season's perfect squad looked like
 
 `ingest/retrospective.py` solves the same problem with hindsight: the best static
