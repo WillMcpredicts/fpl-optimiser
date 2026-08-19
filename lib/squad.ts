@@ -4,6 +4,8 @@ import type { Position } from "./types";
 const SEASON = process.env.FPL_SEASON ?? "2026-27";
 
 export type SquadPlayer = {
+  /** Projection for each gameweek in the horizon, keyed by gameweek. */
+  perGw: Record<number, number>;
   player_id: number;
   web_name: string;
   team: string;
@@ -71,13 +73,23 @@ for (let d = 3; d <= 5; d++)
   for (let m = 2; m <= 5; m++)
     for (let f = 1; f <= 3; f++) if (1 + d + m + f === 11) FORMATIONS.push([d, m, f]);
 
-/** Highest-scoring legal XI. Mirrors ingest/planner.py so the UI agrees with it. */
-export function bestXi(players: SquadPlayer[]): Set<number> {
+/**
+ * Highest-scoring legal XI. Mirrors ingest/planner.py so the UI agrees with it.
+ *
+ * `score` picks which projection to rank on. Ranking on the horizon total is
+ * wrong for the weekly decision -- you field an XI for ONE gameweek, and a
+ * player with a blank this week but a good run later should still be benched
+ * now. Pass a per-gameweek score to answer "who do I start on Saturday".
+ */
+export function bestXi(
+  players: SquadPlayer[],
+  score: (p: SquadPlayer) => number = (p) => p.points_3gw,
+): Set<number> {
   const byPos = new Map<number, SquadPlayer[]>();
   for (const p of players) {
     byPos.set(p.position, [...(byPos.get(p.position) ?? []), p]);
   }
-  for (const list of byPos.values()) list.sort((a, b) => b.points_3gw - a.points_3gw);
+  for (const list of byPos.values()) list.sort((a, b) => score(b) - score(a));
 
   let bestTotal = -1;
   let best: Set<number> = new Set();
@@ -90,7 +102,7 @@ export function bestXi(players: SquadPlayer[]): Set<number> {
     const ids = new Set<number>();
     for (const [pos, n] of Object.entries(counts)) {
       for (const p of (byPos.get(Number(pos)) ?? []).slice(0, n)) {
-        total += p.points_3gw;
+        total += score(p);
         ids.add(p.player_id);
       }
     }
@@ -199,6 +211,7 @@ export async function loadSquad(): Promise<SquadData> {
         position: p.element_type,
         selling_price: pick.selling_price,
         purchase_price: pick.purchase_price,
+        perGw: Object.fromEntries(pts.get(p.id) ?? new Map()),
         points_next: pts.get(p.id)?.get(gameweeks[0]) ?? 0,
         points_3gw: total3(p.id),
         status: p.status,

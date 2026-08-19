@@ -12,7 +12,15 @@ name: Ingest
 # is fine here: this is a between-gameweeks planning tool, not a live tracker.
 on:
   schedule:
+    # Deadlines are 90 minutes before the first kick-off, so they move: Friday
+    # 17:30, Saturday 10:30, Sunday 12:30. A twice-daily schedule left an
+    # 11-hour hole before a Friday deadline, which is exactly when press
+    # conferences land team news. Running through the day closes it. Public
+    # repositories get free runners, so frequency costs nothing.
     - cron: "15 6 * * *"
+    - cron: "0 9 * * *"
+    - cron: "0 12 * * *"
+    - cron: "0 15 * * *"
     - cron: "45 17 * * *"
   workflow_dispatch:
     inputs:

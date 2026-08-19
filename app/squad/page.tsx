@@ -1,6 +1,6 @@
 import Nav from "../Nav";
 import SquadForm from "./SquadForm";
-import { loadSquad } from "@/lib/squad";
+import { bestXi, loadSquad } from "@/lib/squad";
 import { selectRows, isConfigured } from "@/lib/supabase";
 import { POSITION_NAMES, type Position } from "@/lib/types";
 
@@ -49,13 +49,23 @@ async function loadOptions() {
 export default async function SquadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; saved?: string }>;
+  searchParams: Promise<{ error?: string; saved?: string; gw?: string }>;
 }) {
   const params = await searchParams;
   const [data, { options, gw }] = await Promise.all([loadSquad(), loadOptions()]);
 
-  const starters = data.players.filter((p) => p.inBestXi).sort((a, b) => b.points_3gw - a.points_3gw);
-  const bench = data.players.filter((p) => !p.inBestXi).sort((a, b) => b.points_3gw - a.points_3gw);
+  // Which gameweek's XI to show. Defaults to the next one, because that is the
+  // decision actually in front of you; the horizon total is the wrong basis for
+  // picking a team on Saturday.
+  const selectedGw = Number(params.gw ?? data.gameweeks[0] ?? 0);
+  const gwScore = (p: (typeof data.players)[number]) => p.perGw?.[selectedGw] ?? 0;
+  const xiForGw = bestXi(data.players, gwScore);
+  const starters = data.players
+    .filter((p) => xiForGw.has(p.player_id))
+    .sort((a, b) => gwScore(b) - gwScore(a));
+  const bench = data.players
+    .filter((p) => !xiForGw.has(p.player_id))
+    .sort((a, b) => gwScore(b) - gwScore(a));
 
   // A weak pick is a starter in the bottom third of comparably priced players
   // in the same position -- cheap alternatives exist that score more.
@@ -77,7 +87,7 @@ export default async function SquadPage({
         <span className="pos">{POSITION_NAMES[p.position as Position]}</span>
       </td>
       <td>{(p.selling_price / 10).toFixed(1)}</td>
-      <td>{p.points_next.toFixed(2)}</td>
+      <td><strong>{(p.perGw?.[selectedGw] ?? 0).toFixed(2)}</strong></td>
       <td><strong>{p.points_3gw.toFixed(2)}</strong></td>
       <td>{(p.points_3gw / (p.selling_price / 10)).toFixed(2)}</td>
       <td className={weak.has(p.player_id) ? "weak" : ""}>
@@ -121,10 +131,34 @@ export default async function SquadPage({
         <>
           <p className="meta" style={{ marginTop: 0 }}>
             Squad value £{(data.squadValue / 10).toFixed(1)}m · bank £{(data.bank / 10).toFixed(1)}m ·{" "}
-            {data.freeTransfers} free transfer{data.freeTransfers === 1 ? "" : "s"} · best XI projects{" "}
-            <strong>{starters.reduce((a, p) => a + p.points_3gw, 0).toFixed(1)}</strong> points over
-            GW{data.gameweeks[0]}–{data.gameweeks[data.gameweeks.length - 1]}.
+            {data.freeTransfers} free transfer{data.freeTransfers === 1 ? "" : "s"} · GW{selectedGw} XI projects{" "}
+            <strong>{starters.reduce((a, p) => a + gwScore(p), 0).toFixed(1)}</strong>, and the
+            whole squad{" "}
+            <strong>{data.players.reduce((a, p) => a + p.points_3gw, 0).toFixed(1)}</strong>{" "}
+            across GW{data.gameweeks[0]}–{data.gameweeks[data.gameweeks.length - 1]}.
           </p>
+          <div className="controls" style={{ marginBottom: 12 }}>
+            <span className="meta">Pick the XI for:</span>
+            {data.gameweeks.map((gw) => (
+              <a
+                key={gw}
+                href={`/squad?gw=${gw}`}
+                className="xi-badge"
+                style={{
+                  padding: "5px 11px",
+                  textDecoration: "none",
+                  borderColor: gw === selectedGw ? "var(--accent)" : undefined,
+                  color: gw === selectedGw ? "var(--text)" : undefined,
+                }}
+              >
+                GW{gw}
+              </a>
+            ))}
+            <span className="meta">
+              Chosen for GW{selectedGw} alone — you field a team for one week, not for the
+              whole horizon.
+            </span>
+          </div>
           <div className="table-scroll">
             <table>
               <thead>
@@ -133,8 +167,8 @@ export default async function SquadPage({
                   <th className="left">Team</th>
                   <th className="left">Pos</th>
                   <th>£</th>
-                  <th>Next GW</th>
-                  <th>3 GWs</th>
+                  <th>GW{selectedGw}</th>
+                  <th>{data.gameweeks.length} GWs</th>
                   <th>Pts per £m</th>
                   <th>vs price bracket</th>
                   <th className="left">Role</th>

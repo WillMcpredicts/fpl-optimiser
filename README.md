@@ -294,6 +294,33 @@ cd ~/fpl-optimiser/ingest && ../.venv/bin/python run.py all
    onward. They still do not move a score: the gate in `trend_engine_gate` stays
    off until a backtest on THIS season justifies opening it.
 
+## The weekly cycle
+
+What the tool answers each week, and where:
+
+| Decision | Where |
+|---|---|
+| Who to transfer, and whether to take a hit | Optimiser |
+| Who to captain | Optimiser, per gameweek |
+| Who to start and who to bench | Squad, with a gameweek selector |
+| Whether to play a chip | Optimiser |
+| Who is worth buying | Predicted points, three views |
+
+The starting XI is chosen for ONE gameweek, not the horizon total. That
+distinction matters: a player with a blank this week and a good run later should
+still be benched now, and ranking on a six-gameweek total gets that backwards.
+
+Known gaps, in rough order of how much they would cost you:
+
+- **Predicted lineups.** No free, reliable source. Minutes are modelled from
+  start history, depth chart and FPL's own availability flag, which is the best
+  available substitute but will not catch a surprise rotation.
+- **European and cup congestion.** The data identifies competitions but nothing
+  models "played Thursday in Europe, likely rested Sunday".
+- **Bench order.** Auto-substitutions follow bench order and it is not modelled.
+- **Double and blank gameweeks.** Multiple fixtures per gameweek are handled
+  correctly in the maths but never flagged in the UI. None are scheduled yet.
+
 ## Automation
 
 `ingest.yml` runs twice daily. Prices settle just after 01:30 UK and team news
