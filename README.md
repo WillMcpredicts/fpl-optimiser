@@ -316,6 +316,33 @@ A squad entered by hand for a later gameweek is never overwritten: manual entry
 is the only way to record a team before a deadline, so it is always the more
 current statement of intent.
 
+## What last season's perfect squad looked like
+
+`ingest/retrospective.py` solves the same problem with hindsight: the best static
+£100m squad for a completed season, no transfers, priced at what you would
+actually have paid in August. Not a benchmark -- the perfect squad is unknowable
+in advance -- but the STRUCTURE transfers even though the players do not.
+
+For 2025-26 the ceiling was **3,098 points from £99.5m**, and three things stand
+out:
+
+**No bench fodder at all.** Every one of the fifteen started at least a quarter
+of the season; the cheapest was £4.5m and scored 143. Over a full season with no
+transfers, rotation and injuries mean every slot gets used, so a £4.0m
+non-playing enabler is wasted money. Note this contradicts the forward-looking
+optimiser, which DOES buy cheap fodder -- correctly, because over a six-gameweek
+horizon a fourth-choice bench player genuinely never plays. The two answers
+differ because the questions differ.
+
+**Only two players at £9.0m or more.** Haaland at £14.0m returned 239 points but
+17.1 per £m, the worst value in the squad, and was still worth buying. Everything
+else sat between £4.5m and £7.5m.
+
+**Defenders were the best value, forwards the worst.** Defence took 26.6% of the
+budget and returned 29.3% of the points; forwards took 27.6% and returned 19.3%.
+By price band, cheap defenders delivered ~18-19 points per £m against ~15-16 for
+midfielders and forwards at any price. DefCon is the reason.
+
 ## The weekly cycle
 
 What the tool answers each week, and where:
