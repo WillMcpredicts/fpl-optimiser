@@ -294,6 +294,28 @@ cd ~/fpl-optimiser/ingest && ../.venv/bin/python run.py all
    onward. They still do not move a score: the gate in `trend_engine_gate` stays
    off until a backtest on THIS season justifies opening it.
 
+## What refreshes on its own
+
+Everything except the squad, and the squad now too once a manager id is set.
+
+| | Automatic? |
+|---|---|
+| Prices, injuries, availability flags | yes |
+| Finished-gameweek player stats | yes |
+| Projection window rolling forward | yes — projects the next unfinished gameweeks |
+| Shot data and trend rates for the live season | yes |
+| Transfer plan, optimiser, chip timing | yes |
+| **Your squad** | only with `FPL_MANAGER_ID` set |
+
+Set `FPL_MANAGER_ID` as a repository variable and `run.py sync` pulls the last
+locked squad after each gameweek, before the planner runs. Without it the squad
+stays wherever it was last entered by hand, and every recommendation is built on
+that -- which goes stale the moment a transfer is made.
+
+A squad entered by hand for a later gameweek is never overwritten: manual entry
+is the only way to record a team before a deadline, so it is always the more
+current statement of intent.
+
 ## The weekly cycle
 
 What the tool answers each week, and where:

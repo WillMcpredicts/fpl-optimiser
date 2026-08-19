@@ -5,6 +5,7 @@
     python ingest/run.py history   # vaastav backfill (once per past season)
     python ingest/run.py fpl       # live FPL only
     python ingest/run.py predict   # recompute predicted points
+    python ingest/run.py sync      # pull the last locked squad from FPL
     python ingest/run.py plan      # recompute transfer suggestions
     python ingest/run.py optimise  # best reachable squad (MILP)
     python ingest/run.py chips     # Bench Boost and Triple Captain timing
@@ -36,7 +37,7 @@ def main() -> int:
     step = sys.argv[1] if len(sys.argv) > 1 else "all"
     known = {
         "all", "full", "history", "fpl", "predict", "plan",
-        "optimise", "chips", "shots", "trends", "backtest",
+        "optimise", "chips", "shots", "trends", "backtest", "sync",
     }
     if step not in known:
         print(__doc__)
@@ -77,6 +78,12 @@ def main() -> int:
 
         sys.argv = ["backtest.py", BACKTEST_SEASON]
         backtest.main()
+
+    if step in ("all", "full", "sync"):
+        import squad_sync
+
+        # Before planning: a plan built on last week's squad is worthless.
+        squad_sync.main(CURRENT_SEASON)
 
     if step in ("all", "full", "plan"):
         import planner

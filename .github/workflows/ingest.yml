@@ -60,6 +60,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FPL_SEASON: ${{ vars.FPL_SEASON || '2026-27' }}
+          # Optional. Without it the squad must be entered by hand; with it the
+          # last locked squad is pulled automatically after each gameweek.
+          FPL_MANAGER_ID: ${{ vars.FPL_MANAGER_ID }}
         run: python run.py ${{ github.event.inputs.step || 'all' }}
 
       - name: Report this run
