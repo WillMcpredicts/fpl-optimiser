@@ -120,6 +120,31 @@ def upsert(table: str, rows: Sequence[dict], *, on_conflict: str) -> int:
     return sent
 
 
+def insert_rows(table: str, rows: Sequence[dict]) -> int:
+    """Plain chunked insert, for tables whose rows are replaced wholesale.
+
+    Deliberately not upsert: a table with a serial primary key has no usable
+    conflict target, and upserting on it would make the dedupe in `upsert`
+    collapse every row into one.
+    """
+    _require_supabase()
+    if not rows:
+        return 0
+    sent = 0
+    for start in range(0, len(rows), CHUNK):
+        batch = rows[start : start + CHUNK]
+        r = SESSION.post(
+            f"{SUPABASE_URL}/rest/v1/{table}",
+            json=batch,
+            headers=_headers("return=minimal"),
+            timeout=120,
+        )
+        if r.status_code >= 400:
+            raise RuntimeError(f"insert {table} failed [{r.status_code}]: {r.text[:800]}")
+        sent += len(batch)
+    return sent
+
+
 def delete_where(table: str, filters: str) -> None:
     """Delete rows matching a PostgREST filter string, e.g. 'season=eq.2026-27'."""
     _require_supabase()

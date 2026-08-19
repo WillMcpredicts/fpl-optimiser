@@ -1,0 +1,71 @@
+name: Ingest
+
+# Cadence is built around when the data actually changes, not a round number.
+#
+#   06:15 UTC daily  -- prices settle just after 01:30 UK, injuries and press
+#                       conference news land through the morning. A daily
+#                       refresh keeps the table current whenever it is opened.
+#   17:45 UTC daily  -- catches evening team news and, on days after matches,
+#                       the finished-gameweek stats that feed the rate model.
+#
+# GitHub cron is best-effort and can drift by several minutes under load. That
+# is fine here: this is a between-gameweeks planning tool, not a live tracker.
+on:
+  schedule:
+    - cron: "15 6 * * *"
+    - cron: "45 17 * * *"
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "Pipeline step (all, full, fpl, predict, plan, shots, trends, backtest)"
+        required: false
+        default: "all"
+
+concurrency:
+  # Never let two runs write to the same tables at once.
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ingest/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r ingest/requirements.txt
+
+      - name: Run pipeline
+        working-directory: ingest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FPL_SEASON: ${{ vars.FPL_SEASON || '2026-27' }}
+        run: python run.py ${{ github.event.inputs.step || 'all' }}
+
+      - name: Report last run
+        if: always()
+        working-directory: ingest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, ".")
+          from common import select
+          runs = select("ingest_runs", "select=*&order=started_at.desc&limit=6")
+          print(f"{'source':<24}{'status':<9}{'rows':>8}  detail")
+          for r in runs:
+              print(f"{r['source']:<24}{r['status']:<9}{r['rows_written'] or 0:>8}  {(r['detail'] or '')[:70]}")
+          failed = [r for r in runs[:4] if r["status"] == "failed"]
+          if failed:
+              sys.exit(f"{len(failed)} step(s) failed -- see ingest_runs")
+          PY

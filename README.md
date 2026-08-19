@@ -12,8 +12,8 @@ repo and its own Supabase project.
 |---|---|---|
 | 1 | FPL + historical ingestion, predicted points table | **Done, live on Supabase** |
 | 2 | Trend engine, backtest, sign-off gate | **Done. Backtested, gate stays OFF by decision** |
-| 3 | Squad import, transfer planner, full UI | Not started |
-| 4 | Automated ingestion schedule | Not started |
+| 3 | Squad import, transfer planner, full UI | **Done** |
+| 4 | Automated ingestion schedule | **Done** |
 
 ## What was confirmed before building
 
@@ -109,6 +109,29 @@ back to it and says on screen that it is doing so:
 ./.venv/bin/python ingest/dryrun.py 3 --snapshot
 ```
 
+## Transfer economy
+
+One free transfer a week, up to five bankable, -4 points per extra transfer.
+Confirmed against the live game settings (`max_extra_free_transfers = 4`).
+
+The planner answers two separate questions and keeps them separate:
+
+**Each ranked row** is one transfer taken on its own, so its hit is simply
+whether a free transfer is available. Ranking rows and charging a cumulative hit
+down the list would be nonsense: three swaps all bringing in the same striker
+cannot be taken together, and pricing them as if they could invents a transfer
+you could never make.
+
+**The plan** is the executable version -- a greedy, non-conflicting sequence
+that tracks the bank and charges -4 once the free transfers run out. It then
+reports the *depth* whose cumulative net is highest, which is usually one
+transfer rather than the longest sequence available. In testing, a four-move
+plan grossing +14.15 netted +2.15 after hits, against +6.34 for the single best
+move -- so the answer was "make one transfer", and the tool says so.
+
+Swaps are filtered for affordability from sale value plus bank, and for the
+three-per-club limit, which is easy to forget and invalidates a team.
+
 ## Layout
 
 ```
@@ -126,7 +149,25 @@ ingest/
   model.py      build_predictions(): the single scoring path
   dryrun.py     Same path, no database, plus snapshot output
 supabase/migrations/
+.github/workflows/
+  ingest.yml    Scheduled pipeline, 06:15 and 17:45 UTC
+  checks.yml    Typecheck, build, and the unit suite on every push
 ```
+
+## Automation
+
+`ingest.yml` runs twice daily. Prices settle just after 01:30 UK and team news
+lands through the morning, so the early run keeps the table current; the evening
+run catches late team news and, after matchdays, finished-gameweek stats.
+
+Needs two repository secrets, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`,
+and optionally a `FPL_SEASON` variable. The final step reads `ingest_runs` back
+and fails the job if any step failed, so a broken scrape is visible rather than
+silently serving stale numbers.
+
+The historical backfill is deliberately excluded from the routine run: three
+seasons of player-gameweeks do not change, and re-fetching 87,000 rows twice a
+day would be waste. Use `run.py full` for a first run or after a schema change.
 
 ## How a score is built
 
