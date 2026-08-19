@@ -168,26 +168,16 @@ supabase/migrations/
 - Code: https://github.com/WillMcpredicts/fpl-optimiser (private)
 - Database: Supabase `fpl-optimiser`, ref `vzaieavyivsbgfsxzdbo`, eu-west-2
 
-### Known blocker: GitHub-hosted runners
+### Why the repository is public
 
-The scheduled workflow is registered and correct, but every run so far ends with
-`The job was not acquired by Runner of type hosted even after multiple attempts`
--- GitHub never allocates a machine, and the job is cancelled after ~15 minutes.
-No run on this account has ever succeeded. This is account-level runner
-availability, not the workflow: the YAML parses, the run queues, and no step
-executes.
+While it was private, every Actions run ended with `The job was not acquired by
+Runner of type hosted even after multiple attempts` -- GitHub allocated no
+machine and cancelled the job after ~15 minutes. Public repositories get free
+unlimited hosted runners, and making it public fixed it immediately. Nothing
+secret is in the code: credentials live in Actions secrets and Vercel
+environment variables, neither of which is exposed by public source.
 
-Three ways out, in order of least effort:
-
-1. Make the repo public. Public repositories get free unlimited hosted runners.
-   Nothing secret is in the code -- credentials live in Actions secrets and
-   Vercel env vars, neither of which becomes public.
-2. Add a payment method / complete verification on the GitHub account, which is
-   what usually unblocks hosted runners on a new free account.
-3. Run the pipeline locally on a schedule (`launchd` on macOS) against the same
-   Supabase project. Same result, no GitHub involvement.
-
-Until one of those, run it by hand -- it takes about a minute:
+To run the pipeline by hand instead, it takes about a minute:
 
 ```bash
 cd ~/fpl-optimiser/ingest && ../.venv/bin/python run.py all
