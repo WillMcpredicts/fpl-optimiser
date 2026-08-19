@@ -18,7 +18,7 @@ type PlayerRecord = {
   selected_by_percent: number | null;
 };
 
-type TeamRecord = { id: number; short_name: string };
+type TeamRecord = { id: number; short_name: string; elo_source: string | null };
 
 type PredictionRecord = Prediction & {
   season: string;
@@ -116,12 +116,37 @@ export async function loadDataset(): Promise<Dataset> {
           "players",
           `season=eq.${SEASON}&select=id,web_name,team_id,element_type,now_cost,status,news,selected_by_percent`,
         ),
-        selectRows<TeamRecord>("teams", `season=eq.${SEASON}&select=id,short_name`),
+        selectRows<TeamRecord>(
+          "teams",
+          `season=eq.${SEASON}&select=id,short_name,elo_source`,
+        ),
         selectRows<PredictionRecord>("predicted_points", `season=eq.${SEASON}&select=*`),
       ]);
 
       if (predictions.length) {
         const { rows, gameweeks } = assemble(players, teams, predictions);
+
+        // The same caveats the offline snapshot surfaces. They are properties
+        // of the data, not of which source it came from, so losing them on the
+        // live path would quietly make the numbers look better founded than
+        // they are.
+        const promoted = teams
+          .filter((t) => t.elo_source === "promoted_side_prior")
+          .map((t) => t.short_name);
+        if (promoted.length) {
+          warnings.push(
+            `No Elo history for ${promoted.join(", ")}; a promoted-side prior was used.`,
+          );
+        }
+        const anyCurrentSeasonEvidence = predictions.some(
+          (p) => (p.confidence_breakdown?.current_season_90s ?? 0) > 0,
+        );
+        if (!anyCurrentSeasonEvidence) {
+          warnings.push(
+            "No gameweeks played yet this season -- every rate comes from historical " +
+              "priors, weighted toward the most recent season.",
+          );
+        }
         const latest = predictions.reduce(
           (acc, p) => (p.computed_at > acc ? p.computed_at : acc),
           predictions[0].computed_at,

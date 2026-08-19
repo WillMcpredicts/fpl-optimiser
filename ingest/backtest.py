@@ -23,7 +23,7 @@ import statistics
 import sys
 from collections import defaultdict
 
-from common import Run, log, select, upsert
+from common import Run, delete_where, log, select, upsert
 from trends import (
     MIN_EVENTS,
     STAT_DEFS,
@@ -196,8 +196,14 @@ def main() -> None:
 
     if not cache:
         with Run("backtest", season) as r:
+            # Replace, do not merge. An upsert keyed on (season, stat, tier)
+            # updates the rows a run produces but leaves behind any combination
+            # an earlier run produced and this one did not -- so the table ends
+            # up showing two different runs at once, which is worse than showing
+            # nothing. A backtest result is only meaningful as a whole.
+            delete_where("backtest_results", f"season=eq.{season}")
             r.rows = upsert(
-                "backtest_results", rows, on_conflict="id"
+                "backtest_results", rows, on_conflict="season,stat_type,confidence"
             )
 
 

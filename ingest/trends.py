@@ -389,3 +389,61 @@ def build_flags(rate_rows: list[dict], season: str, as_of_gw: int) -> list[dict]
                 }
             )
     return flags
+
+
+# Stats whose split-half reliability shows them to be genuine, persistent team
+# characteristics rather than a property of whoever they happened to play.
+# Measured on 2025-26: r = 0.73 and 0.51 respectively, against 0.16 or below
+# for every defensive pattern. See README, "Backtest result".
+STRUCTURAL_STATS = {"head_xg_share_for", "setpiece_xg_share_for"}
+
+
+def main(season: str = "2025-26", as_of_gw: int | None = None) -> None:
+    """Compute and store rate stats and trend flags for a season.
+
+    Writes both layers: everything into team_rate_stats (including rows below
+    the sample floor, per principle 4 -- computed and stored, never promoted),
+    and only what clears the floor and the persistence check into trend_flags.
+    """
+    from common import Run, log, select, upsert
+
+    with Run("trends", season) as run:
+        events = select("match_events", f"season=eq.{season}&select=*")
+        if not events:
+            raise RuntimeError(f"no match_events for {season} -- run shots.py first")
+
+        by_gw: dict[int, list[dict]] = defaultdict(list)
+        for e in events:
+            if e.get("gw") is not None:
+                by_gw[int(e["gw"])].append(e)
+
+        target = as_of_gw or (max(by_gw) + 1)
+        log(f"  {len(events)} events, GW{min(by_gw)}-{max(by_gw)}, as of GW{target}")
+
+        rate_rows = build_rate_stats(by_gw, target)
+        for r in rate_rows:
+            r["season"] = season
+        run.rows += upsert(
+            "team_rate_stats",
+            rate_rows,
+            on_conflict="season,as_of_gw,team_id,window_label,stat_type",
+        )
+        below = sum(1 for r in rate_rows if not r["meets_sample_floor"])
+        log(f"  {len(rate_rows)} rate rows ({below} below the sample floor, stored not promoted)")
+
+        flags = build_flags(rate_rows, season, target)
+        for f in flags:
+            f.pop("_z_previous", None)
+        run.rows += upsert(
+            "trend_flags", flags, on_conflict="season,as_of_gw,team_id,stat_type"
+        )
+        tiers: dict[str, int] = defaultdict(int)
+        for f in flags:
+            tiers[f["confidence"]] += 1
+        log(f"  {len(flags)} flags: {dict(tiers)}")
+
+
+if __name__ == "__main__":
+    import sys
+
+    main(sys.argv[1] if len(sys.argv) > 1 else "2025-26")

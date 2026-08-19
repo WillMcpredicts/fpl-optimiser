@@ -10,8 +10,8 @@ repo and its own Supabase project.
 
 | Phase | Scope | State |
 |---|---|---|
-| 1 | FPL + historical ingestion, predicted points table | **Done** |
-| 2 | Trend engine, backtest, sign-off gate | **Backtested — engine built, gate OFF, awaiting your call** |
+| 1 | FPL + historical ingestion, predicted points table | **Done, live on Supabase** |
+| 2 | Trend engine, backtest, sign-off gate | **Done. Backtested, gate stays OFF by decision** |
 | 3 | Squad import, transfer planner, full UI | Not started |
 | 4 | Automated ingestion schedule | Not started |
 
@@ -68,6 +68,16 @@ API collapses to a coarse 1-5 strength scale until the season starts. `ingest/el
 resolves it in order — this season's Elo, then last season's carried forward by
 `code`, then a promoted-side prior — and records which source each team used, so
 a projection resting on a guess does not look as solid as one resting on 38 games.
+
+## The Supabase project
+
+`fpl-optimiser`, ref `vzaieavyivsbgfsxzdbo`, region eu-west-2 (London), Postgres 17.
+Separate from the prediction league's project. Migrations 0001-0005 are applied.
+
+Two things worth knowing about applying migrations through the Management API:
+PostgREST caches the schema, so a fresh column needs
+`notify pgrst, 'reload schema';` before an upsert can see it; and the database
+password is not recoverable, only resettable, from Settings -> Database.
 
 ## Setup
 

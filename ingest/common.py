@@ -79,11 +79,31 @@ def _headers(prefer: str) -> dict[str, str]:
     }
 
 
+def dedupe(rows: Sequence[dict], on_conflict: str) -> list[dict]:
+    """Keep one row per conflict key, last occurrence winning.
+
+    Postgres rejects an INSERT ... ON CONFLICT batch that touches the same key
+    twice, and the source archives do contain repeats -- vaastav carries
+    duplicate player-gameweek rows where a fixture was corrected after the fact.
+    Deduping here rather than in each caller means no ingestion job can trip it.
+    """
+    keys = [k.strip() for k in on_conflict.split(",")]
+    seen: dict[tuple, dict] = {}
+    for r in rows:
+        seen[tuple(r.get(k) for k in keys)] = r
+    return list(seen.values())
+
+
 def upsert(table: str, rows: Sequence[dict], *, on_conflict: str) -> int:
     """Bulk upsert, chunked. Returns the number of rows sent."""
     _require_supabase()
     if not rows:
         return 0
+
+    deduped = dedupe(rows, on_conflict)
+    if len(deduped) != len(rows):
+        log(f"  {len(rows) - len(deduped)} duplicate {table} rows collapsed")
+    rows = deduped
     url = f"{SUPABASE_URL}/rest/v1/{table}?on_conflict={on_conflict}"
     sent = 0
     for start in range(0, len(rows), CHUNK):
