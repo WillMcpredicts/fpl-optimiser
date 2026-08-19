@@ -39,6 +39,26 @@ export const MATCHUP_TEST = {
   gainOverBaseline: -0.1, // still worse than "assume league average"
 };
 
+/**
+ * The one trend that earned its place: how generous each team is to each
+ * position, in FPL points. Measured INCREMENTALLY over the Elo fixture
+ * adjustment the model already applies, on a held-out second half of 2025-26.
+ */
+export const OPPONENT_GENEROSITY = {
+  overallGain: 0.46,
+  byPosition: [
+    { pos: "GKP", n: 259, gain: 0.54, used: false, reason: "does not carry across seasons (r = 0.01)" },
+    { pos: "DEF", n: 1369, gain: 0.55, used: true, reason: "used, seeded at 30% from last season" },
+    { pos: "MID", n: 1786, gain: 0.54, used: true, reason: "used, seeded at 60% from last season" },
+    { pos: "FWD", n: 498, gain: -0.09, used: false, reason: "excluded, effect is negative" },
+  ],
+  withinSeasonReliability: { DEF: 0.52, MID: 0.47, GKP: 0.35, FWD: -0.26 },
+  crossSeasonReliability: { MID: 0.59, DEF: 0.3, FWD: 0.28, GKP: 0.01 },
+  damping: 0.4,
+  cap: 15,
+  eloGainForContext: 2.1,
+};
+
 export type TrendFlag = {
   team_id: number;
   stat_type: string;

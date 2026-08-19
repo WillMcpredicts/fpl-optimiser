@@ -190,7 +190,30 @@ supabase/migrations/
 - Code: https://github.com/WillMcpredicts/fpl-optimiser (private)
 - Database: Supabase `fpl-optimiser`, ref `vzaieavyivsbgfsxzdbo`, eu-west-2
 
-## Why trends still do not move a score
+## The trend that does move a score
+
+How generous each team is to each position, in FPL points. Face a dominant
+possession side and your defenders spend the match clearing and blocking, so
+their defensive-contribution points rise whatever the score. Structural and
+repeatable, unlike the shot patterns below.
+
+Validated the hard way, in `ingest/opponent_backtest.py`: measured INCREMENTALLY
+over the Elo fixture adjustment, because a strong team both concedes few points
+and carries a high Elo -- test it naively and you re-discover fixture difficulty
+and flatter the result. Damping tuned on GW10-24 of 2025-26, scored on GW25-38.
+
+| Position | Player-GWs | Gain over the fixture adjustment | Used |
+|---|---|---|---|
+| GKP | 259 | +0.54% | no -- does not survive the summer (r = 0.01) |
+| DEF | 1369 | +0.55% | yes, seeded 30% from last season |
+| MID | 1786 | +0.54% | yes, seeded 60% from last season |
+| FWD | 498 | -0.09% | no -- effect is negative |
+
+The gain is uniform across three independent position groups, which noise does
+not do. Damped to 0.4 and capped at 15%. For scale, the Elo adjustment itself is
+worth 2.1% on the same test -- this is a refinement, not the engine.
+
+## Why shot-pattern trends still do not move a score
 
 The obvious idea is that if a defence concedes headers, a header-scoring attacker
 should get an uplift against them. It has two halves and they are not equally

@@ -20,6 +20,7 @@ from collections import defaultdict
 
 from common import Run, log, select, upsert
 from config import CURRENT_SEASON, VAASTAV_SEASONS
+import opponent_strength
 from rates import build_player_rates
 from scoring import (
     APPEARANCE_LONG,
@@ -145,6 +146,62 @@ def confidence_tier(rates: dict) -> str:
     return "low"
 
 
+def load_gate() -> dict:
+    """Whether trend adjustments are allowed to move a score, and by how much."""
+    rows = select("trend_engine_gate", "select=*")
+    if not rows:
+        return {"enabled": False, "max_adjustment": 0.15}
+    return rows[0]
+
+
+def build_opponent_factors(season: str, prior_seasons: list[str], current_gws, prior_gws):
+    """Opponent generosity per (current-season team id, position).
+
+    Prior-season rows carry that season's team ids and player ids, both of which
+    are reassigned every summer. Opponents are therefore translated through the
+    stable club `code`; a relegated club simply drops out.
+    """
+    cur_players = select("players", f"season=eq.{season}&select=id,element_type")
+    position_by_player = {p["id"]: p["element_type"] for p in cur_players}
+
+    cur_teams = select("teams", f"season=eq.{season}&select=id,code")
+    code_to_current = {t["code"]: t["id"] for t in cur_teams}
+
+    translated_prior = []
+    for prior_season in prior_seasons:
+        prior_teams = select("teams", f"season=eq.{prior_season}&select=id,code")
+        prior_id_to_code = {t["id"]: t["code"] for t in prior_teams}
+        prior_players = select(
+            "players", f"season=eq.{prior_season}&select=id,element_type"
+        )
+        prior_positions = {p["id"]: p["element_type"] for p in prior_players}
+
+        for r in prior_gws:
+            if r.get("season") != prior_season:
+                continue
+            code = prior_id_to_code.get(r.get("opponent_team"))
+            current_id = code_to_current.get(code) if code else None
+            if current_id is None:
+                continue  # club is not in this season's league
+            pos = prior_positions.get(r.get("player_id"))
+            if not pos:
+                continue
+            translated_prior.append(
+                {
+                    "opponent_team": current_id,
+                    "player_id": r["player_id"],
+                    "minutes": r.get("minutes"),
+                    "total_points": r.get("total_points"),
+                }
+            )
+        # Prior-season positions must be resolvable for those rows too.
+        position_by_player = {**prior_positions, **position_by_player}
+
+    return opponent_strength.build_factors(
+        current_gws, translated_prior, position_by_player, season
+    )
+
+
 def load_inputs(season: str, prior_seasons: list[str]) -> tuple:
     log("  loading players, teams, fixtures")
     players = select("players", f"season=eq.{season}&select=*")
@@ -175,6 +232,8 @@ def build_predictions(
     fixtures: list[dict],
     rows_by_code: dict,
     gws: list[int],
+    opponent_factors: dict | None = None,
+    gate: dict | None = None,
 ) -> list[dict]:
     """Predicted-points rows for every player across `gws`.
 
@@ -185,6 +244,11 @@ def build_predictions(
     team_by_id = {t["id"]: t for t in teams}
     elo_by_team = {t["id"]: t.get("elo") for t in teams}
     rates_by_player = build_player_rates(players, rows_by_code, elo_by_team)
+
+    opponent_factors = opponent_factors or {}
+    gate = gate or {"enabled": False, "max_adjustment": 0.15}
+    trends_live = bool(gate.get("enabled"))
+    gate_cap = float(gate.get("max_adjustment") or 0.15)
 
     fixtures_by_gw: dict[int, list[dict]] = defaultdict(list)
     for f in fixtures:
@@ -205,6 +269,7 @@ def build_predictions(
 
             base_total = 0.0
             real_total = 0.0
+            trend_total = 0.0
             parts_sum: dict[str, float] = defaultdict(float)
             fixture_detail = []
 
@@ -223,6 +288,19 @@ def build_predictions(
                 )
                 real = score_fixture(rates, avail, attack_mult, concede_lam)
 
+                # How generous this opponent is to this position, in FPL points.
+                # Damped and capped in opponent_strength, capped again by the
+                # gate, and never applied to forwards.
+                factor, factor_detail = opponent_strength.factor_for(
+                    opponent_factors, opponent_id, rates["position"]
+                )
+                if not trends_live:
+                    factor = 1.0
+                else:
+                    factor = max(1.0 - gate_cap, min(1.0 + gate_cap, factor))
+                fixture_trend = real["total"] * (factor - 1.0)
+                trend_total += fixture_trend
+
                 base_total += base["total"]
                 real_total += real["total"]
                 for k, v in real.items():
@@ -239,6 +317,9 @@ def build_predictions(
                         "expected_goals_conceded": round(concede_lam, 3),
                         "clean_sheet_probability": round(poisson_zero(concede_lam), 3),
                         "points": round(real["total"], 3),
+                        "opponent_position_factor": round(factor, 4),
+                        "opponent_position_detail": factor_detail,
+                        "trend_points": round(fixture_trend, 3),
                     }
                 )
 
@@ -259,9 +340,9 @@ def build_predictions(
                     "expected_minutes": round(rates["avg_minutes"] * avail, 2),
                     "base_score": round(base_total, 3),
                     "fixture_adjustment": round(real_total - base_total, 3),
-                    "trend_adjustment": 0,
+                    "trend_adjustment": round(trend_total, 3),
                     "bps_adjustment": 0,
-                    "final_score": round(real_total, 3),
+                    "final_score": round(real_total + trend_total, 3),
                     "model_version": MODEL_VERSION,
                     "confidence_breakdown": {
                         "confidence": confidence_tier(rates),
@@ -284,7 +365,13 @@ def build_predictions(
                             "defcon_rate": round(rates["defcon_rate"], 4),
                         },
                         "fixtures": fixture_detail,
-                        "trend_engine": "disabled -- awaiting backtest sign-off",
+                        "trend_engine": (
+                            "opponent generosity by position, damped "
+                            f"{opponent_strength.DAMPING}, capped "
+                            f"{int(gate_cap * 100)}%"
+                            if trends_live
+                            else "disabled -- gate closed"
+                        ),
                         "notes": [
                             "BPS adjustment held at 0: the BPS system was rewritten "
                             "for 2026/27, so any calibration on 2025/26 data would "
@@ -313,8 +400,13 @@ def main(season: str = CURRENT_SEASON, horizon: int = HORIZON) -> None:
             raise RuntimeError("no upcoming gameweeks found in fixtures")
         log(f"  projecting gameweeks {gws}")
 
+        gate = load_gate()
+        factors = build_opponent_factors(season, VAASTAV_SEASONS, current_gws, prior_gws)
+        log(f"  opponent factors for {len(factors)} team-positions; "
+            f"trend gate {'OPEN' if gate.get('enabled') else 'closed'}")
+
         rows = build_predictions(
-            season, players, teams, fixtures, rows_by_code, gws
+            season, players, teams, fixtures, rows_by_code, gws, factors, gate
         )
         run.rows = upsert("predicted_points", rows, on_conflict="season,player_id,gw")
         log(f"  wrote {run.rows} predictions across {len(gws)} gameweeks")

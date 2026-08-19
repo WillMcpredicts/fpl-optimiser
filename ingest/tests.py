@@ -24,6 +24,10 @@ def main() -> int:
     from depth import build_depth_priors
     from planner import best_xi
     from scoring import (
+        DEF,
+        FWD,
+        GK,
+        MID,
         elo_multiplier,
         expected_concede_penalty,
         poisson_zero,
@@ -124,6 +128,59 @@ def main() -> int:
     check("dearer keeper is first choice", priors[1]["depth_rank"], 0)
     check("first choice expected to start", priors[1]["p60"] > 0.8, True)
     check("backup rarely starts", priors[2]["p60"] < 0.1, True)
+
+    print("\nopponent generosity adjustment")
+    from opponent_strength import (
+        CROSS_SEASON_WEIGHT, DAMPING, ELIGIBLE, MAX_ADJUSTMENT,
+        build_factors, factor_for,
+    )
+
+    # A league where one club is twice as generous to midfielders as the rest.
+    generous, stingy = 99, 98
+    rows, positions = [], {}
+    for pid in range(1, 41):
+        positions[pid] = MID if pid <= 20 else FWD
+    for pid in range(1, 21):
+        for _ in range(30):
+            rows.append({"player_id": pid, "opponent_team": generous,
+                         "minutes": 90, "total_points": 8})
+            rows.append({"player_id": pid, "opponent_team": stingy,
+                         "minutes": 90, "total_points": 2})
+    facs = build_factors(rows, [], positions, "2026-27")
+    gen, _ = factor_for(facs, generous, MID)
+    sti, _ = factor_for(facs, stingy, MID)
+    check("generous opponent reads above 1", gen > 1.0, True)
+    check("stingy opponent reads below 1", sti < 1.0, True)
+    check("adjustment respects the cap",
+          max(abs(gen - 1), abs(sti - 1)) <= MAX_ADJUSTMENT + 1e-9, True)
+    fwd, _ = factor_for(facs, generous, FWD)
+    check("forwards are never adjusted", fwd, 1.0)
+    check("goalkeepers get no cross-season carry", CROSS_SEASON_WEIGHT[GK], 0.0)
+    check("forwards get no cross-season carry", CROSS_SEASON_WEIGHT[FWD], 0.0)
+    check("only GK, DEF, MID are eligible", ELIGIBLE == {GK, DEF, MID}, True)
+    check("damping is below 1", 0 < DAMPING < 1, True)
+
+    # Shrinkage: two clubs with the SAME observed rate but different sample
+    # sizes. The thinly-observed one must sit closer to the league average.
+    # Compared on the underlying rate, not the returned factor -- an extreme
+    # club hits the cap, and a capped value cannot show shrinkage at all.
+    same_rate = []
+    for pid in range(1, 21):
+        for _ in range(30):
+            same_rate.append({"player_id": pid, "opponent_team": 90,
+                              "minutes": 90, "total_points": 5})
+    thick = [{"player_id": 1, "opponent_team": 96, "minutes": 90, "total_points": 7}
+             for _ in range(200)]
+    thin = [{"player_id": 2, "opponent_team": 97, "minutes": 90, "total_points": 7}
+            for _ in range(12)]
+    sh = build_factors(same_rate + thick + thin, [], positions, "2026-27")
+    _, thick_detail = factor_for(sh, 96, MID)
+    _, thin_detail = factor_for(sh, 97, MID)
+    check("both clubs are rated", bool(thick_detail and thin_detail), True)
+    if thick_detail and thin_detail:
+        league = thick_detail["league_rate"]
+        check("identical observed rates, thin sample shrinks further to the mean",
+              abs(thin_detail["rate"] - league) < abs(thick_detail["rate"] - league), True)
 
     print("\noptimiser respects the rules")
     from optimiser import SQUAD_SHAPE, TEAM_LIMIT, optimise

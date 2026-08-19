@@ -1,5 +1,11 @@
 import Nav from "../Nav";
-import { MATCHUP_TEST, RELIABILITY, STRUCTURAL_STATS, loadTrends } from "@/lib/trends";
+import {
+  MATCHUP_TEST,
+  OPPONENT_GENEROSITY,
+  RELIABILITY,
+  STRUCTURAL_STATS,
+  loadTrends,
+} from "@/lib/trends";
 
 export const dynamic = "force-dynamic";
 
@@ -34,15 +40,91 @@ export default async function TrendsPage() {
       <Nav current="/trends" />
 
       <div className="banner">
-        <strong>These do not affect any predicted points score</strong>
+        <strong>One trend is live. The rest are not, and the difference is evidence.</strong>
         <p style={{ margin: "6px 0 0" }}>
-          Everything on this page is context for your own judgement. The gate in{" "}
-          <code>trend_engine_gate</code> is off and every <code>trend_adjustment</code> is
-          zero. The rest of this page explains why.
+          <strong>Live:</strong> how generous each opponent is to each position, in FPL
+          points. It improves predictions by {OPPONENT_GENEROSITY.overallGain}% on data it
+          has never seen, measured on top of the fixture adjustment already applied. It is
+          damped to {OPPONENT_GENEROSITY.damping} and capped at {OPPONENT_GENEROSITY.cap}%,
+          and never touches forwards.
+        </p>
+        <p style={{ margin: "6px 0 0" }}>
+          <strong>Not live:</strong> everything derived from shot patterns — headers
+          conceded, set-piece vulnerability, zones. Those failed the same test.
         </p>
       </div>
 
-      <h2 style={{ fontSize: 15, margin: "26px 0 8px" }}>What this page is asking</h2>
+      <h2 style={{ fontSize: 15, margin: "26px 0 8px" }}>The trend that works</h2>
+      <div className="explain">
+        <p>
+          The idea: some sides concede points disproportionately to a position, for
+          structural reasons. Face a dominant possession team and your defenders spend the
+          match clearing and blocking, so their defensive-contribution points rise whatever
+          the score. That is a repeatable, causal effect — not a coincidence of the fixture
+          list.
+        </p>
+        <p>
+          It was tested the hard way. Not against a naive baseline, but{" "}
+          <em>incrementally</em>: the Elo fixture adjustment is applied first, and this has
+          to earn whatever is left. That matters, because a strong team both concedes few
+          points and has a high Elo — test it naively and you mostly re-discover fixture
+          difficulty and flatter the result. Damping was tuned on gameweeks 10–24 and
+          scored on 25–38, which it never saw.
+        </p>
+        <div className="table-scroll" style={{ margin: "12px 0" }}>
+          <table>
+            <thead>
+              <tr>
+                <th className="left">Position</th>
+                <th>Player-GWs tested</th>
+                <th>Gain over fixture adjustment</th>
+                <th className="left">In the model?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {OPPONENT_GENEROSITY.byPosition.map((r) => (
+                <tr key={r.pos}>
+                  <td className="left"><span className="pos">{r.pos}</span></td>
+                  <td>{r.n}</td>
+                  <td className={r.gain > 0 ? "pos-val" : "neg-val"}>
+                    {r.gain > 0 ? "+" : ""}{r.gain}%
+                  </td>
+                  <td className="left">
+                    <span className={`pill ${r.used ? "high" : "low"}`}>
+                      {r.used ? "yes" : "no"}
+                    </span>{" "}
+                    <span className="meta">{r.reason}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The gain is uniform across keepers, defenders and midfielders — 0.54%, 0.55%,
+          0.54%. Noise does not line up like that across three independent groups. Forwards
+          are negative and excluded: what a forward scores against a given side is dominated
+          by which forward it is, not who they play.
+        </p>
+        <p>
+          Keepers are excluded too, for a different reason. The effect is real within a
+          season but does not survive the summer (r = 0.01), because keeper points come from
+          saves and clean sheets, which depend on personnel that changes. Midfielders carry
+          best across seasons (r = 0.59), defenders weakly (0.30) — so last season seeds
+          this one at those weights, and the live season takes over as it accumulates.
+        </p>
+        <p className="meta">
+          For scale: the Elo fixture adjustment itself is worth{" "}
+          {OPPONENT_GENEROSITY.eloGainForContext}% on the same test. This adds
+          {" "}{OPPONENT_GENEROSITY.overallGain}% on top. It is a refinement, not the engine.
+        </p>
+      </div>
+
+      <h2 style={{ fontSize: 15, margin: "26px 0 8px" }}>The trends that do not work</h2>
+
+      <h3 style={{ fontSize: 14, margin: "16px 0 8px", color: "var(--muted)" }}>
+        Why shot-pattern trends were rejected
+      </h3>
       <div className="explain">
         <p>
           Take a specific, reasonable idea: <em>Brentford concede a lot of headed goals, so
