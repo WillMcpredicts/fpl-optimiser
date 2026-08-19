@@ -368,10 +368,20 @@ def squad_report(season: str = CURRENT_SEASON, horizon: int = 3) -> None:
     )
 
 
+def has_squad(season: str) -> bool:
+    return bool(select("my_squad", f"season=eq.{season}&is_current=is.true&select=id"))
+
+
 def main() -> None:
     season = CURRENT_SEASON
     if "--report" in sys.argv:
         squad_report(season)
+        return
+    # Having no squad imported is a normal state, not a pipeline failure -- and
+    # it has to be checked BEFORE opening a Run, or the context manager records
+    # a failure that the caller cannot retract.
+    if not has_squad(season):
+        log("[planner] no squad imported yet; nothing to plan")
         return
     with Run("planner", season) as run:
         rows = plan(season)

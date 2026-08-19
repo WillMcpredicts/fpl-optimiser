@@ -42,6 +42,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r ingest/requirements.txt
 
+      - name: Mark start time
+        id: start
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%S)" >> "$GITHUB_OUTPUT"
+
       - name: Run pipeline
         working-directory: ingest
         env:
@@ -50,22 +54,39 @@ jobs:
           FPL_SEASON: ${{ vars.FPL_SEASON || '2026-27' }}
         run: python run.py ${{ github.event.inputs.step || 'all' }}
 
-      - name: Report last run
+      - name: Report this run
         if: always()
         working-directory: ingest
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RUN_STARTED_AT: ${{ steps.start.outputs.at }}
         run: |
           python - <<'PY'
+          import os
           import sys
+
           sys.path.insert(0, ".")
           from common import select
-          runs = select("ingest_runs", "select=*&order=started_at.desc&limit=6")
+
+          # Judge only the runs THIS job started. Anything wider -- a fixed row
+          # count, or a rolling window -- lets one old failure fail every future
+          # job forever.
+          since = os.environ["RUN_STARTED_AT"]
+          runs = select(
+              "ingest_runs", f"started_at=gte.{since}&select=*&order=started_at.desc"
+          )
+          if not runs:
+              sys.exit(f"no ingest_runs recorded since {since} -- did the pipeline run?")
+
           print(f"{'source':<24}{'status':<9}{'rows':>8}  detail")
           for r in runs:
-              print(f"{r['source']:<24}{r['status']:<9}{r['rows_written'] or 0:>8}  {(r['detail'] or '')[:70]}")
-          failed = [r for r in runs[:4] if r["status"] == "failed"]
+              print(
+                  f"{r['source']:<24}{r['status']:<9}"
+                  f"{r['rows_written'] or 0:>8}  {(r['detail'] or '')[:70]}"
+              )
+          failed = [r for r in runs if r["status"] == "failed"]
           if failed:
               sys.exit(f"{len(failed)} step(s) failed -- see ingest_runs")
+          print(f"\nall {len(runs)} step(s) ok")
           PY
