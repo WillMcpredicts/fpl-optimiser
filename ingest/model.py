@@ -173,8 +173,7 @@ def build_predictions(
     players: list[dict],
     teams: list[dict],
     fixtures: list[dict],
-    current_by_code: dict,
-    prior_by_code: dict,
+    rows_by_code: dict,
     gws: list[int],
 ) -> list[dict]:
     """Predicted-points rows for every player across `gws`.
@@ -185,9 +184,7 @@ def build_predictions(
     """
     team_by_id = {t["id"]: t for t in teams}
     elo_by_team = {t["id"]: t.get("elo") for t in teams}
-    rates_by_player = build_player_rates(
-        players, current_by_code, prior_by_code, elo_by_team
-    )
+    rates_by_player = build_player_rates(players, rows_by_code, elo_by_team)
 
     fixtures_by_gw: dict[int, list[dict]] = defaultdict(list)
     for f in fixtures:
@@ -307,12 +304,9 @@ def main(season: str = CURRENT_SEASON, horizon: int = HORIZON) -> None:
         if not players or not fixtures:
             raise RuntimeError("no players or fixtures found -- run ingestion first")
 
-        current_by_code: dict[int, list[dict]] = defaultdict(list)
-        prior_by_code: dict[int, list[dict]] = defaultdict(list)
-        for r in current_gws:
-            current_by_code[r["player_code"]].append(r)
-        for r in prior_gws:
-            prior_by_code[r["player_code"]].append(r)
+        rows_by_code: dict[int, list[dict]] = defaultdict(list)
+        for r in current_gws + prior_gws:
+            rows_by_code[r["player_code"]].append(r)
 
         gws = next_gameweeks(fixtures, horizon)
         if not gws:
@@ -320,7 +314,7 @@ def main(season: str = CURRENT_SEASON, horizon: int = HORIZON) -> None:
         log(f"  projecting gameweeks {gws}")
 
         rows = build_predictions(
-            season, players, teams, fixtures, current_by_code, prior_by_code, gws
+            season, players, teams, fixtures, rows_by_code, gws
         )
         run.rows = upsert("predicted_points", rows, on_conflict="season,player_id,gw")
         log(f"  wrote {run.rows} predictions across {len(gws)} gameweeks")

@@ -11,7 +11,7 @@ repo and its own Supabase project.
 | Phase | Scope | State |
 |---|---|---|
 | 1 | FPL + historical ingestion, predicted points table | **Done** |
-| 2 | Trend engine, backtest, sign-off gate | Not started |
+| 2 | Trend engine, backtest, sign-off gate | **Backtested — engine built, gate OFF, awaiting your call** |
 | 3 | Squad import, transfer planner, full UI | Not started |
 | 4 | Automated ingestion schedule | Not started |
 
@@ -54,6 +54,9 @@ scores per three actions rather than two, and keeper saves were restructured. Th
 model therefore carries **no BPS over/under-performance term** — calibrating one
 on 2025/26 data would fit a formula that no longer exists. Base bonus rates are
 still used and are flagged in each player's breakdown.
+
+**The trend engine failed its own backtest.** See "Backtest result" below. The
+gate in `trend_engine_gate` is `enabled = false` and trend adjustments are zero.
 
 **The season has not started.** No gameweeks are played, so every rate comes from
 2025/26 priors. The trend engine's minimum sample floor and persistence check
@@ -149,3 +152,64 @@ Two shrinkage layers keep small samples honest:
 pre-season it takes only 26 distinct values across 592 players, is capped at 4.0,
 and puts Haaland and Raya on the same figure. It is a placeholder, not a
 projection, and tuning toward it would have fitted noise.
+
+
+## Backtest result (principle 6)
+
+Walk-forward over all of 2025-26: at each gameweek, flags are built from only the
+gameweeks already played, then scored against what actually happened over the
+next three. Two predictors of the forward rate are compared — the league mean
+("assume average") and the team's shrunk rate ("assume the pattern continues").
+
+| Tier | Flags | Improvement vs baseline | Hit rate |
+|---|---|---|---|
+| high | 7 | +10.9% | 0.86 |
+| medium | 19 | **−184%** | 0.63 |
+| watch | 300 | −14.6% | 0.56 |
+
+**Verdict: trends are not wired into predicted points.** Seven high-confidence
+flags in a whole season is too few to conclude anything, and medium-confidence
+flags make forward predictions substantially worse than assuming league average.
+
+### Why — split-half reliability
+
+A team's rate over GW1-19 against its rate over GW20-38, ~231 shots per team
+per half. If a stat is a real, persistent team property the halves correlate.
+
+| Stat | r | Reading |
+|---|---|---|
+| Own headed xG share | **0.73** | stable |
+| Own set-piece xG share | **0.51** | stable |
+| xG per shot conceded | 0.39 | weak |
+| Headed xG conceded per shot faced | 0.34 | weak |
+| Headed shots conceded per shot faced | 0.28 | weak |
+| Set-piece shots conceded per shot faced | 0.16 | noise |
+| Fast-break shots conceded per shot faced | 0.10 | noise |
+| Left-flank shots conceded per shot faced | 0.01 | noise |
+| Box shots conceded per shot faced | **−0.31** | noise |
+
+**Attacking patterns persist; defensive ones do not.** How a team attacks is a
+coached, deliberate style. How it concedes by body part or zone is mostly a
+property of whichever opponents it happened to face. The brief's central example
+— a team conceding disproportionately from a specific pattern — is the half that
+does not survive contact with the data.
+
+### What the safeguards were worth
+
+Running the same backtest without empirical Bayes shrinkage produces **148
+"high-confidence" flags** with a hit rate of 0.52 and forward predictions
+**7% worse** than assuming league average. With shrinkage, almost none survive.
+
+That is the entire value of principle 3, measured: it is the difference between a
+tool that confidently recommends a hundred and fifty bad transfers a season and
+one that says it does not know.
+
+### Two corrections found while backtesting
+
+- **Sampling variance was assumed Bernoulli.** For xG-valued stats that is wrong
+  and made genuinely stable stats look like noise. It is now measured from the
+  actual per-event spread.
+- **The z denominator was the observed spread.** A shrunk estimate must be
+  measured against the spread of *true* team rates; the observed spread is
+  inflated by the very sampling noise the shrinkage already removed, so dividing
+  by it penalised the same noise twice.

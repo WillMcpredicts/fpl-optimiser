@@ -43,15 +43,16 @@ def gather():
     players = fpl_mod.build_players(boot, CURRENT_SEASON)
     fixtures = fpl_mod.build_fixtures(fixtures_raw, CURRENT_SEASON)
 
-    prior_by_code: dict[int, list[dict]] = defaultdict(list)
+    rows_by_code: dict[int, list[dict]] = defaultdict(list)
     for season in VAASTAV_SEASONS:
         log(f"fetching {season} history from the vaastav archive")
         rows = get_csv(f"{VAASTAV_RAW}/{season}/gws/merged_gw.csv")
         codes = history_mod.code_map(season)
-        for r in history_mod.build_gameweeks(season, rows, codes):
-            prior_by_code[r["player_code"]].append(r)
+        built = history_mod.build_gameweeks(season, rows, codes)
+        log(f"  {season}: {len(built)} player-gameweeks")
+        for r in built:
+            rows_by_code[r["player_code"]].append(r)
 
-    current_by_code: dict[int, list[dict]] = defaultdict(list)
     finished = [e["id"] for e in boot["events"] if e.get("finished")]
     if finished:
         log(f"fetching {len(finished)} finished gameweeks of live data")
@@ -60,8 +61,9 @@ def gather():
             live = get_json(f"{FPL_API}/event/{gw}/live/")
             for el in live.get("elements", []):
                 s = el["stats"]
-                current_by_code[code_by_id[el["id"]]].append(
+                rows_by_code[code_by_id[el["id"]]].append(
                     {
+                        "season": CURRENT_SEASON,
                         "minutes": to_int(s.get("minutes")),
                         "starts": to_int(s.get("starts")),
                         "bonus": to_int(s.get("bonus")),
@@ -74,7 +76,7 @@ def gather():
                 )
     else:
         log("no finished gameweeks this season -- projecting from priors alone")
-    return boot, teams, players, fixtures, current_by_code, prior_by_code
+    return boot, teams, players, fixtures, rows_by_code
 
 
 def write_snapshot(teams, players, rows, warnings) -> None:
@@ -128,12 +130,12 @@ def parse_args(argv: list[str]) -> tuple[int, str | None, int, bool]:
 def main() -> None:
     horizon, position_filter, top, snapshot = parse_args(sys.argv[1:])
 
-    boot, teams, players, fixtures, current_by_code, prior_by_code = gather()
+    boot, teams, players, fixtures, rows_by_code = gather()
     gws = model_mod.next_gameweeks(fixtures, horizon)
     log(f"\nprojecting gameweeks {gws}\n")
 
     rows = model_mod.build_predictions(
-        CURRENT_SEASON, players, teams, fixtures, current_by_code, prior_by_code, gws
+        CURRENT_SEASON, players, teams, fixtures, rows_by_code, gws
     )
 
     warnings: list[str] = []
@@ -145,7 +147,9 @@ def main() -> None:
         )
     if not any(e.get("finished") for e in boot["events"]):
         warnings.append(
-            "No gameweeks played yet this season -- every rate comes from 2025/26 priors."
+            "No gameweeks played yet this season -- every rate comes from "
+            f"historical priors ({', '.join(reversed(VAASTAV_SEASONS))}), "
+            "weighted toward the most recent."
         )
 
     if snapshot:
