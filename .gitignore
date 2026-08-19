@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+.cache/
+data/snapshot.json

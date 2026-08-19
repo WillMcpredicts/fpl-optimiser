@@ -1,0 +1,92 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --panel-2: #1d212a;
+  --line: #2a2f3a;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+  --accent: #4ea1ff;
+  --good: #3ddc97;
+  --bad: #ff6b6b;
+  --warn: #ffc857;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+a { color: var(--accent); }
+
+.wrap { max-width: 1400px; margin: 0 auto; padding: 20px 16px 60px; }
+
+header.top { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+header.top h1 { font-size: 20px; margin: 0; }
+nav.tabs { display: flex; gap: 12px; margin: 12px 0 18px; flex-wrap: wrap; }
+nav.tabs a {
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px;
+  text-decoration: none; color: var(--muted); background: var(--panel);
+}
+nav.tabs a[aria-current="page"] { color: var(--text); border-color: var(--accent); }
+
+.meta { color: var(--muted); font-size: 12px; }
+
+.banner {
+  border: 1px solid var(--line); border-left: 3px solid var(--warn);
+  background: var(--panel); padding: 10px 12px; border-radius: 6px;
+  margin: 0 0 14px; font-size: 13px;
+}
+.banner strong { color: var(--warn); }
+.banner ul { margin: 6px 0 0; padding-left: 18px; }
+
+.controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+.controls input, .controls select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 7px 9px; font: inherit;
+}
+
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child, th.left, td.left { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--panel); color: var(--muted); font-weight: 600; z-index: 1; }
+tbody tr:hover { background: var(--panel); }
+
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+
+.pos { display: inline-block; min-width: 34px; padding: 1px 5px; border-radius: 4px;
+  font-size: 11px; text-align: center; background: var(--panel-2); color: var(--muted); }
+
+.pill { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.pill.high { color: var(--good); border-color: #2c6b52; }
+.pill.medium { color: var(--warn); border-color: #6b5a2c; }
+.pill.low { color: var(--bad); border-color: #6b3030; }
+
+.delta.pos-val { color: var(--good); }
+.delta.neg-val { color: var(--bad); }
+
+.flag { color: var(--bad); font-size: 11px; }
+
+details.player > summary { cursor: pointer; list-style: none; }
+details.player > summary::-webkit-details-marker { display: none; }
+details.player[open] > summary { color: var(--accent); }
+
+.breakdown { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px 12px; margin: 6px 0 10px; font-size: 12px; }
+.breakdown h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.breakdown .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 18px; }
+.breakdown .row { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dotted var(--line); padding: 2px 0; }
+.breakdown .row span:last-child { color: var(--text); }
+.breakdown .row span:first-child { color: var(--muted); }
+.equation { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); margin-top: 8px; font-size: 12px; }
+
+.login { max-width: 320px; margin: 15vh auto; padding: 24px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; }
+.login h1 { font-size: 16px; margin: 0 0 14px; }
+.login input { width: 100%; margin-bottom: 10px; }
+.login button { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--accent);
+  background: var(--accent); color: #04121f; font: inherit; font-weight: 600; cursor: pointer; }
+.login .err { color: var(--bad); font-size: 12px; margin-bottom: 10px; }
