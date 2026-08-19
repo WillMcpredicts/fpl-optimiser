@@ -10,3 +10,5 @@ venv/
 .DS_Store
 .cache/
 data/snapshot.json
+tsconfig.tsbuildinfo
+next-env.d.ts
