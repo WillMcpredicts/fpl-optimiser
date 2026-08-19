@@ -30,6 +30,26 @@ SHRINK_90S = 6.0
 # Minutes-model shrinkage is gentler: availability patterns stabilise fast.
 MINUTES_SHRINK_GAMES = 4.0
 
+# Appearance probabilities come out systematically high, and it matters: a
+# backtest over 2025-26 predicted 25.2 minutes a player against 21.8 actual,
+# with the excess concentrated in the 0.2-0.5 band -- squad players who look
+# like they might feature and mostly do not.
+#
+# The ORDERING was already good (each predicted band appeared more often than
+# the one below it), so this is a calibration curve rather than a rethink.
+# Raising the probability to a power above 1 leaves confident cases alone and
+# pulls the uncertain middle down, which is where the error was.
+APPEARANCE_CALIBRATION = 1.35
+
+
+def calibrate(p: float) -> float:
+    """Bend an appearance probability onto the observed frequency curve."""
+    if p <= 0.0:
+        return 0.0
+    if p >= 1.0:
+        return 1.0
+    return p ** APPEARANCE_CALIBRATION
+
 # How far team strength may move the prior for a player with no history of their
 # own. Without it, every promoted-club signing inherits a league-average xG90.
 TEAM_PRIOR_FLOOR, TEAM_PRIOR_CEILING = 0.65, 1.35
@@ -121,12 +141,19 @@ def _blend(rows: list[dict], prior_mean: dict, position: int, minutes_prior: dic
         hit = sum(r["w"] for r in rows if predicate(r))
         return _safe_div(hit + minutes_prior[field] * MINUTES_SHRINK_GAMES, denom)
 
-    blended["p60"] = game_rate("p60", lambda r: r["minutes"] >= 60)
-    blended["p_any"] = game_rate("p_any", lambda r: r["minutes"] > 0)
-    blended["avg_minutes"] = _safe_div(
+    raw_p60 = game_rate("p60", lambda r: r["minutes"] >= 60)
+    raw_p_any = game_rate("p_any", lambda r: r["minutes"] > 0)
+    blended["p60"] = calibrate(raw_p60)
+    blended["p_any"] = calibrate(raw_p_any)
+    blended["raw_p_any"] = round(raw_p_any, 4)
+    raw_minutes = _safe_div(
         sum(r["w"] * r["minutes"] for r in rows)
         + minutes_prior["avg_minutes"] * MINUTES_SHRINK_GAMES,
         denom,
+    )
+    # Minutes follow the same correction, so expected points scale with it.
+    blended["avg_minutes"] = raw_minutes * (
+        calibrate(raw_p_any) / raw_p_any if raw_p_any > 0 else 1.0
     )
 
     # DefCon: only rows from seasons that recorded it.

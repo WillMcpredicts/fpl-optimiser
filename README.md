@@ -316,6 +316,51 @@ A squad entered by hand for a later gameweek is never overwritten: manual entry
 is the only way to record a team before a deadline, so it is always the more
 current statement of intent.
 
+## How accurate is it, really?
+
+`ingest/model_backtest.py` replays the whole model over a completed season,
+gameweek by gameweek, rebuilding every rate from only the football played
+before each one. Measured against the honest bar: a player's own points per
+game to date, which is what a sensible person would guess.
+
+Over 13,503 player-gameweeks in 2025-26:
+
+| Predictor | MAE | Correlation |
+|---|---|---|
+| League average by position | 1.462 | 0.079 |
+| Own points per game | 0.958 | 0.530 |
+| This model | 1.021 | 0.499 |
+
+**In aggregate the model loses to points-per-game by 6.5%.** That is worth
+stating plainly rather than burying. But the aggregate is dominated by players
+who never featured -- 66% of the observations -- and you never pick those:
+
+| | n | Actual | Model MAE | PPG MAE |
+|---|---|---|---|---|
+| Featured | 4,580 | 3.00 | **2.012** | 2.069 |
+| Did not play | 8,923 | 0.00 | 0.512 | **0.388** |
+
+Among players who actually played, the model is better. And where selection
+happens -- the top of the ranking -- it is clearly better:
+
+| Top N by projection | Model | Own PPG |
+|---|---|---|
+| 10 | **4.05** | 3.90 |
+| 25 | **3.69** | 3.53 |
+| 50 | 3.25 | **3.31** |
+| 100 | 2.74 | **2.93** |
+
+So: better at picking a captain or a transfer target, worse at guessing an
+arbitrary squad player's score. That is the right way round for the job, but it
+is not "more accurate than the simple approach" and should not be sold as such.
+
+The backtest also found and fixed a real bias: appearance probabilities came out
+systematically high, predicting 25.2 minutes a player against 21.8 actual, with
+the excess in the 0.2-0.5 band. Ordering was already sound, so it needed a
+calibration curve rather than a rethink -- `APPEARANCE_CALIBRATION` in rates.py.
+That alone took overall MAE from 1.139 to 1.021 and lifted top-10 selection from
+3.95 to 4.05.
+
 ## Why the bench is not free
 
 Only eleven play, so the objective is the starting XI -- but treating the bench
