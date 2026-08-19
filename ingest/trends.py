@@ -410,7 +410,10 @@ def main(season: str = "2025-26", as_of_gw: int | None = None) -> None:
     with Run("trends", season) as run:
         events = select("match_events", f"season=eq.{season}&select=*")
         if not events:
-            raise RuntimeError(f"no match_events for {season} -- run shots.py first")
+            # Before a ball is kicked there is nothing to compute. That is a
+            # normal state, not a failure, and must not fail the pipeline.
+            log(f"  no match_events for {season} yet; nothing to compute")
+            return
 
         by_gw: dict[int, list[dict]] = defaultdict(list)
         for e in events:

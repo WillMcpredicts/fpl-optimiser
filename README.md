@@ -226,6 +226,22 @@ To run the pipeline by hand instead, it takes about a minute:
 cd ~/fpl-optimiser/ingest && ../.venv/bin/python run.py all
 ```
 
+## What it does, and what it does not
+
+1. **Rate the current team** — yes. Every player carries next-GW and 3-GW
+   projections, points per £m, and a percentile against same-position players
+   within £0.5m. The squad as a whole is scored against the best possible
+   £100.0m team, so "how good is this" has a number.
+2. **Surface hidden trends** — **no, and deliberately.** The trend engine is
+   built, backtested and switched off, because it did not predict forward
+   performance. See "Why trends still do not move a score".
+3. **Recommend improvements** — yes. The optimiser solves for the best reachable
+   squad at every transfer count and reports the net after hits.
+4. **Build live trends through the season** — the plumbing now runs on every
+   routine refresh, so shot-level events and rate stats accumulate from GW1
+   onward. They still do not move a score: the gate in `trend_engine_gate` stays
+   off until a backtest on THIS season justifies opening it.
+
 ## Automation
 
 `ingest.yml` runs twice daily. Prices settle just after 01:30 UK and team news

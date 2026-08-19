@@ -8,10 +8,13 @@
     python ingest/run.py plan      # recompute transfer suggestions
     python ingest/run.py optimise  # best reachable squad (MILP)
     python ingest/run.py shots     # FPL-Core-Insights shot data
-    python ingest/run.py trends    # rate stats and trend flags
+    python ingest/run.py trends    # rate stats and trend flags for the live season
     python ingest/run.py backtest  # re-run the trend backtest
 
-`all` is the routine refresh. The historical backfill is deliberately not part
+`all` is the routine refresh: live FPL data, predictions, shot-level events for
+the current season, trend rates and flags, the transfer plan and the optimiser.
+Trends accumulate as the season plays, but stay out of scoring until the gate in
+`trend_engine_gate` is switched on. The historical backfill is deliberately not part
 of it: three seasons of player-gameweeks do not change, and re-fetching ~87,000
 rows on every run would be pure waste.
 """
@@ -22,7 +25,10 @@ import sys
 from common import log
 from config import CURRENT_SEASON
 
-TREND_SEASON = "2025-26"
+# Live trends are built for the season being played. The backtest needs a
+# COMPLETED season, so it stays pointed at the last finished one -- validating a
+# model against a season still in progress would be measuring nothing.
+BACKTEST_SEASON = "2025-26"
 
 
 def main() -> int:
@@ -50,20 +56,25 @@ def main() -> int:
 
         model.main(CURRENT_SEASON)
 
-    if step in ("full", "shots"):
+    if step in ("all", "full", "shots"):
         import shots
 
-        shots.main(TREND_SEASON)
+        # Shot-level data for the live season, so trends accumulate as it plays.
+        shots.main(CURRENT_SEASON)
+        if step == "full":
+            shots.main(BACKTEST_SEASON)
 
-    if step in ("full", "trends"):
+    if step in ("all", "full", "trends"):
         import trends
 
-        trends.main(TREND_SEASON)
+        trends.main(CURRENT_SEASON)
+        if step == "full":
+            trends.main(BACKTEST_SEASON)
 
     if step in ("full", "backtest"):
         import backtest
 
-        sys.argv = ["backtest.py", TREND_SEASON]
+        sys.argv = ["backtest.py", BACKTEST_SEASON]
         backtest.main()
 
     if step in ("all", "full", "plan"):
