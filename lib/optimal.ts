@@ -46,6 +46,16 @@ export type ChipPlan = {
   };
 };
 
+export type PlanWeek = {
+  gw: number;
+  step: number;
+  xi_points: number;
+  hold_points: number;
+  hits: number;
+  free_before: number | null;
+  transfers: { out: string; in: string; out_team: string; in_team: string; gain: number }[];
+};
+
 export type OptimalData = {
   configured: boolean;
   error: string | null;
@@ -57,6 +67,7 @@ export type OptimalData = {
   best: OptimalRow | null;
   /** True when the stored results were built from a squad since replaced. */
   stale: boolean;
+  plan: PlanWeek[];
   currentSquadId: number | null;
   chips: ChipPlan[];
   playerNames: Record<number, { name: string; team: string; cost: number; pos: number }>;
@@ -73,6 +84,7 @@ export async function loadOptimal(): Promise<OptimalData> {
     freeTransfers: 1,
     best: null,
     stale: false,
+    plan: [],
     currentSquadId: null,
     chips: [],
     playerNames: {},
@@ -80,7 +92,7 @@ export async function loadOptimal(): Promise<OptimalData> {
   if (!isConfigured()) return { ...empty, error: "Supabase is not configured." };
 
   try {
-    const [rows, players, teams, chips, squads] = await Promise.all([
+    const [rows, players, teams, chips, squads, planRows] = await Promise.all([
       selectRows<OptimalRow>(
         "optimal_squads",
         `season=eq.${SEASON}&select=*&order=transfers_allowed.asc`,
@@ -92,6 +104,10 @@ export async function loadOptimal(): Promise<OptimalData> {
       selectRows<{ id: number; short_name: string }>("teams", `season=eq.${SEASON}&select=id,short_name`),
       selectRows<ChipPlan>("chip_plans", `season=eq.${SEASON}&select=*&order=gw`),
       selectRows<{ id: number }>("my_squad", `season=eq.${SEASON}&is_current=is.true&select=id`),
+      selectRows<PlanWeek & { squad_id: number }>(
+        "multiweek_plan",
+        `season=eq.${SEASON}&select=*&order=step`,
+      ),
     ]);
     const currentSquadId = squads[0]?.id ?? null;
     if (!rows.length) return { ...empty, chips, currentSquadId };
@@ -130,6 +146,8 @@ export async function loadOptimal(): Promise<OptimalData> {
       // Results computed against a squad that has since been replaced are worse
       // than no results: they recommend transfers for a team you no longer have.
       stale: reachable.length > 0 && reachable[0].squad_id !== currentSquadId,
+      // Only show a plan built from the squad you actually have.
+      plan: planRows.filter((r) => r.squad_id === currentSquadId),
       currentSquadId,
       chips,
       playerNames,

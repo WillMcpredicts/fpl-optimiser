@@ -9,6 +9,7 @@
     python ingest/run.py plan      # recompute transfer suggestions
     python ingest/run.py optimise  # best reachable squad (MILP)
     python ingest/run.py chips     # Bench Boost and Triple Captain timing
+    python ingest/run.py multiweek # transfer plan across the whole horizon
     python ingest/run.py shots     # FPL-Core-Insights shot data
     python ingest/run.py trends    # rate stats and trend flags for the live season
     python ingest/run.py backtest  # re-run the trend backtest
@@ -37,7 +38,7 @@ def main() -> int:
     step = sys.argv[1] if len(sys.argv) > 1 else "all"
     known = {
         "all", "full", "history", "fpl", "predict", "plan",
-        "optimise", "chips", "shots", "trends", "backtest", "sync",
+        "optimise", "chips", "multiweek", "shots", "trends", "backtest", "sync",
     }
     if step not in known:
         print(__doc__)
@@ -103,6 +104,14 @@ def main() -> int:
         import chips
 
         chips.main()
+
+    if step in ("all", "full", "multiweek"):
+        import multiweek
+
+        try:
+            multiweek.main(CURRENT_SEASON)
+        except RuntimeError as exc:
+            log(f"[multiweek] skipped: {exc}")
 
     return 0
 

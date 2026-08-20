@@ -242,6 +242,86 @@ export default async function OptimiserPage() {
         </>
       ) : null}
 
+      {data.plan.length > 0 ? (() => {
+        const planTotal = data.plan.reduce((a, w) => a + Number(w.xi_points), 0);
+        const holdTotal = data.plan.reduce((a, w) => a + Number(w.hold_points), 0);
+        const hitTotal = data.plan.reduce((a, w) => a + w.hits, 0) * 4;
+        const net = planTotal - hitTotal;
+        const gain = net - holdTotal;
+        return (
+          <>
+            <h2 style={{ fontSize: 15, margin: "22px 0 8px" }}>
+              Week by week, using your free transfers
+            </h2>
+            <p className="meta" style={{ marginTop: 0 }}>
+              One free transfer a week, banked up to five, planned across the whole
+              horizon at once rather than a week at a time. A move that looks marginal
+              now can be clearly worth it if it pays for five more gameweeks, and a
+              transfer worth making later is worth banking for.
+            </p>
+            <div className="table-scroll" style={{ marginBottom: 8 }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>GW</th>
+                    <th>Hold</th>
+                    <th>With plan</th>
+                    <th>Gain</th>
+                    <th>Hit</th>
+                    <th className="left">Transfers</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.plan.map((w) => {
+                    const d = Number(w.xi_points) - Number(w.hold_points);
+                    return (
+                      <tr key={w.gw} className={w.transfers.length ? "plan-row" : ""}>
+                        <td>{w.gw}</td>
+                        <td className="meta">{Number(w.hold_points).toFixed(2)}</td>
+                        <td><strong>{Number(w.xi_points).toFixed(2)}</strong></td>
+                        <td className={d > 0.005 ? "pos-val" : "meta"}>
+                          {d > 0.005 ? `+${d.toFixed(2)}` : "—"}
+                        </td>
+                        <td className={w.hits ? "neg-val" : "meta"}>
+                          {w.hits ? `-${w.hits * 4}` : "0"}
+                        </td>
+                        <td className="left">
+                          {w.transfers.length === 0 ? (
+                            <span className="meta">bank the transfer</span>
+                          ) : (
+                            w.transfers.map((t, i) => (
+                              <div key={i}>
+                                {t.out} <span className="meta">({t.out_team})</span> →{" "}
+                                <strong>{t.in}</strong>{" "}
+                                <span className="meta">({t.in_team})</span>
+                              </div>
+                            ))
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="banner" style={{ marginBottom: 26 }}>
+              <strong>
+                Plan is worth {gain >= 0 ? "+" : ""}{gain.toFixed(2)} points over{" "}
+                {data.plan.length} gameweeks against holding
+              </strong>
+              <p style={{ margin: "6px 0 0" }}>
+                {holdTotal.toFixed(1)} holding, {net.toFixed(1)} with the plan
+                {hitTotal ? ` after ${hitTotal} in hits` : ", taking no hits"}. That is{" "}
+                {(gain / data.plan.length).toFixed(2)} a gameweek — inside the model&rsquo;s
+                own margin of error, so treat the sequence as a direction of travel rather
+                than instructions. Only the first move is worth acting on now; the rest
+                will change as real results arrive.
+              </p>
+            </div>
+          </>
+        );
+      })() : null}
+
       <h2 style={{ fontSize: 15, margin: "22px 0 8px" }}>How far is it worth going?</h2>
       <p className="meta" style={{ marginTop: 0 }}>
         Each row is a separate exact solve: the best squad reachable with at most that many

@@ -464,6 +464,26 @@ Known gaps, in rough order of how much they would cost you:
 - **Double and blank gameweeks.** Multiple fixtures per gameweek are handled
   correctly in the maths but never flagged in the UI. None are scheduled yet.
 
+## Planning transfers across the horizon
+
+`ingest/multiweek.py` answers a harder question than the single-week optimiser:
+given one free transfer a week, bankable up to five, what SEQUENCE of moves
+maximises starting-XI points across the whole horizon? Formulated as one
+mixed-integer program over all six gameweeks at once, so it can see that a move
+worth making in three weeks is worth banking a transfer for.
+
+Two constraints exist because the model cannot see the sell-on fee. Prices are
+held constant, so without them it sells and rebuys the same player to chase a
+one-week fixture -- clever-looking plans that lose money. Each player is now
+kept, sold once, or bought once, never a round trip.
+
+On the current squad the plan is worth **+1.66 points over six gameweeks** using
+six free transfers and no hits, against holding. That is 0.28 a gameweek, which
+is comfortably inside the model's own error, and the useful reading is not the
+sequence but the size: with a squad already near optimal, transfer churn earns
+very little. Only the first move is worth acting on -- the rest will change as
+results arrive.
+
 ## Stale results are hidden, not shown
 
 Optimiser output is computed by the Python pipeline and read by the site, so
