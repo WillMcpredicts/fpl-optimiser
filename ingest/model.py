@@ -130,6 +130,22 @@ def score_fixture(
     # scoring rate already contains it and this would double-count.
     penalties = penalty_per_90 * n90
 
+    # A rising or falling role, which a season-long average is slow to register.
+    # Applied here rather than at the call site so every caller gets it -- the
+    # backtest calls score_fixture directly, and a factor applied further up
+    # would be measured as worthless because the test never saw it.
+    trend_mult = rates.get("minutes_trend_multiplier", 1.0)
+    appearance *= trend_mult
+    goals *= trend_mult
+    assists *= trend_mult
+    clean_sheet *= trend_mult
+    conceded *= trend_mult
+    saves *= trend_mult
+    defcon *= trend_mult
+    bonus *= trend_mult
+    cards *= trend_mult
+    penalties *= trend_mult
+
     total = (
         appearance + goals + assists + clean_sheet + conceded
         + saves + defcon + bonus + cards + penalties
@@ -386,6 +402,10 @@ def build_predictions(
                         "availability": round(avail, 3),
                         "availability_reason": avail_reason,
                         "depth_rank": rates["depth_rank"],
+                        "minutes_trend": rates.get("minutes_trend"),
+                        "minutes_trend_multiplier": rates.get(
+                            "minutes_trend_multiplier"
+                        ),
                         "penalty_order": p.get("penalties_order"),
                         "penalty_duty": penalty_change,
                         "penalty_points_per_90": round(penalty_per_90, 3),

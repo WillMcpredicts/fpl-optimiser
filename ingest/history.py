@@ -60,6 +60,10 @@ def build_gameweeks(season: str, rows: list[dict], codes: dict[int, int]) -> lis
                 "yellow_cards": to_int(r.get("yellow_cards")),
                 "red_cards": to_int(r.get("red_cards")),
                 "value": to_int(r.get("value"), None),
+                "transfers_in": to_int(r.get("transfers_in"), None),
+                "transfers_out": to_int(r.get("transfers_out"), None),
+                "transfers_balance": to_int(r.get("transfers_balance"), None),
+                "selected": to_int(r.get("selected"), None),
             }
         )
     if missing_code:

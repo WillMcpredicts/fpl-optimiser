@@ -329,9 +329,9 @@ Over 13,503 player-gameweeks in 2025-26:
 |---|---|---|
 | League average by position | 1.462 | 0.079 |
 | Own points per game | 0.958 | 0.530 |
-| This model | 1.021 | 0.499 |
+| This model | 1.014 | 0.508 |
 
-**In aggregate the model loses to points-per-game by 6.5%.** That is worth
+**In aggregate the model loses to points-per-game by 5.8%.** That is worth
 stating plainly rather than burying. But the aggregate is dominated by players
 who never featured -- 66% of the observations -- and you never pick those:
 
@@ -345,10 +345,10 @@ happens -- the top of the ranking -- it is clearly better:
 
 | Top N by projection | Model | Own PPG |
 |---|---|---|
-| 10 | **4.05** | 3.90 |
-| 25 | **3.69** | 3.53 |
-| 50 | 3.25 | **3.31** |
-| 100 | 2.74 | **2.93** |
+| 10 | **4.38** | 3.90 |
+| 25 | **3.70** | 3.53 |
+| 50 | **3.32** | 3.31 |
+| 100 | 2.78 | **2.93** |
 
 So: better at picking a captain or a transfer target, worse at guessing an
 arbitrary squad player's score. That is the right way round for the job, but it
@@ -360,6 +360,35 @@ the excess in the 0.2-0.5 band. Ordering was already sound, so it needed a
 calibration curve rather than a rethink -- `APPEARANCE_CALIBRATION` in rates.py.
 That alone took overall MAE from 1.139 to 1.021 and lifted top-10 selection from
 3.95 to 4.05.
+
+## Factors tested, and mostly rejected
+
+Five candidates were measured the same way: as a multiplier on the existing
+projection, walk-forward, tuned on GW10-24 of 2025-26 and scored on GW25-38.
+Judged on selection quality -- the actual points of the top fifteen by
+projection -- because that is what a squad decision depends on.
+
+| Factor | Effect on selection | Verdict |
+|---|---|---|
+| Minutes trend (role growing or shrinking) | **+1.55%** | **used** |
+| Crowd signal (net transfers in) | -0.83% | rejected |
+| xG regression (goals against xG) | 0.00% | already captured |
+| Form (recent scoring rate) | **-5.12%** | rejected |
+| Player home/away split | **-6.31%** | rejected |
+
+Two results worth keeping in mind. **Chasing form actively hurts** -- weighting
+recent scoring made selection 5% worse, which is the classic manager's mistake
+showing up in the numbers. And **xG regression added nothing**, because the model
+already scores off expected goals rather than goals, so the correction is baked
+in.
+
+The crowd signal is the interesting failure: net transfers improved average
+error but made the top picks worse. The market piles into names that are already
+obvious, so there is no edge where you actually choose.
+
+Minutes trend was implemented. In the full backtest it lifted the top ten from
+4.05 to **4.38** actual points against 3.90 for points-per-game, and overall MAE
+from 1.021 to 1.014.
 
 ## Why the bench is not free
 

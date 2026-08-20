@@ -41,6 +41,17 @@ MINUTES_SHRINK_GAMES = 4.0
 # pulls the uncertain middle down, which is where the error was.
 APPEARANCE_CALIBRATION = 1.35
 
+# A player whose minutes are climbing is winning his place; one whose minutes
+# are falling is losing it, and a season-long average is slow to notice either.
+# Tested against four other candidates on 2025-26 and the only one that improved
+# SELECTION: the top fifteen by projection gained 1.55% actual points, held out.
+# Form (recent scoring) and player-level home/away splits both made selection
+# worse, and xG regression added nothing because the model already scores off xG
+# rather than goals.
+MINUTES_TREND_WEIGHT = 0.2
+MINUTES_TREND_WINDOW = 4
+MINUTES_TREND_FLOOR, MINUTES_TREND_CEILING = 0.6, 1.6
+
 
 def calibrate(p: float) -> float:
     """Bend an appearance probability onto the observed frequency curve."""
@@ -75,6 +86,10 @@ def normalise_gw_rows(rows: Iterable[dict]) -> list[dict]:
         out.append(
             {
                 "w": season_weight(season) if season else 1.0,
+                # Kept so "the last four games" can mean the last four
+                # CHRONOLOGICALLY, rather than whatever order the rows arrived in.
+                "gw": r.get("gw") or 0,
+                "season": season,
                 "defcon_known": season not in SEASONS_WITHOUT_DEFCON,
                 "minutes": r.get("minutes") or 0,
                 "starts": r.get("starts") or 0,
@@ -164,6 +179,33 @@ def _blend(rows: list[dict], prior_mean: dict, position: int, minutes_prior: dic
         sum(r["w"] for r in defcon_rows if r["defcon"] >= threshold)
         + prior_mean["defcon_rate"] * MINUTES_SHRINK_GAMES,
         defcon_w + MINUTES_SHRINK_GAMES,
+    )
+
+    # Direction of travel in minutes, from the most recent season only -- last
+    # season's role says nothing about whether he is starting NOW.
+    #
+    # "Most recent" is the highest weight present, not weight 1.0: when this runs
+    # inside a backtest of a past season, nothing carries the live season's
+    # weight and a check for 1.0 silently matches nothing.
+    live = []
+    if rows:
+        newest = max(r["w"] for r in rows)
+        live = sorted(
+            (r for r in rows if r["w"] == newest), key=lambda r: r["gw"]
+        )
+    trend = 1.0
+    if len(live) >= MINUTES_TREND_WINDOW + 2:
+        recent = live[-MINUTES_TREND_WINDOW:]
+        earlier = live[:-MINUTES_TREND_WINDOW]
+        recent_avg = sum(r["minutes"] for r in recent) / len(recent)
+        earlier_avg = sum(r["minutes"] for r in earlier) / len(earlier)
+        if earlier_avg >= 10.0:
+            trend = max(
+                MINUTES_TREND_FLOOR, min(MINUTES_TREND_CEILING, recent_avg / earlier_avg)
+            )
+    blended["minutes_trend"] = round(trend, 3)
+    blended["minutes_trend_multiplier"] = round(
+        1.0 + MINUTES_TREND_WEIGHT * (trend - 1.0), 4
     )
 
     blended["evidence_90s"] = round(w90, 2)
