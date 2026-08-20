@@ -1,5 +1,5 @@
 import Nav from "../Nav";
-import { loadOptimal, type OptimalRow } from "@/lib/optimal";
+import { HORIZONS, loadOptimal, type OptimalRow } from "@/lib/optimal";
 import { POSITION_NAMES, type Position } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +59,42 @@ function SquadTable({ row, gws, ownedKnown }: { row: OptimalRow; gws: number[]; 
   );
 }
 
-export default async function OptimiserPage() {
-  const data = await loadOptimal();
+export default async function OptimiserPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ h?: string }>;
+}) {
+  const params = await searchParams;
+  const requested = Number(params.h ?? 6);
+  const data = await loadOptimal(
+    HORIZONS.includes(requested) ? requested : 6,
+  );
   const gws = data.gameweeks;
+
+  const horizonToggle = (
+    <div className="controls" style={{ marginBottom: 14 }}>
+      <span className="meta">Optimise for:</span>
+      {HORIZONS.map((h) => (
+        <a
+          key={h}
+          href={`/optimiser?h=${h}`}
+          className="xi-badge"
+          style={{
+            padding: "5px 12px",
+            textDecoration: "none",
+            borderColor: h === data.horizon ? "var(--accent)" : undefined,
+            color: h === data.horizon ? "var(--text)" : undefined,
+          }}
+        >
+          {h === 1 ? "This gameweek" : `${h} gameweeks`}
+        </a>
+      ))}
+      <span className="meta">
+        The best move over one week is often not the best over six — a hard fixture now
+        with an easy run after is a bad short transfer and a good long one.
+      </span>
+    </div>
+  );
 
   if (data.error) {
     return (
@@ -97,6 +130,7 @@ export default async function OptimiserPage() {
           <span className="meta">Optimiser · results out of date</span>
         </header>
         <Nav current="/optimiser" />
+        {horizonToggle}
         <div className="banner">
           <strong>Your squad has changed since these were worked out</strong>
           <p style={{ margin: "6px 0 0" }}>
@@ -129,6 +163,7 @@ export default async function OptimiserPage() {
         </span>
       </header>
       <Nav current="/optimiser" />
+      {horizonToggle}
 
       <div className="banner">
         <strong>
@@ -138,7 +173,7 @@ export default async function OptimiserPage() {
         </strong>
         <p style={{ margin: "6px 0 0" }}>
           Your squad projects <strong>{data.baseline.toFixed(1)}</strong> starting-XI points
-          over {gws.length} gameweeks. The best squad buildable from a clean £100.0m projects{" "}
+          over {gws.length} gameweek{gws.length === 1 ? "" : "s"}. The best squad buildable from a clean £100.0m projects{" "}
           <strong>{Number(data.dream?.xi_points ?? 0).toFixed(1)}</strong> — so you are within{" "}
           {(Number(data.dream?.xi_points ?? 0) - data.baseline).toFixed(1)} points of perfect,
           before any transfer costs.

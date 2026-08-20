@@ -265,112 +265,127 @@ def score_existing(pool: list[dict], gws: list[int], owned: set[int]) -> float:
     return round(total, 3)
 
 
+# One gameweek, three, and six. The best move over one week is often not the
+# best over six, and showing only one horizon implies a single right answer.
+HORIZONS = (1, 3, 6)
+
+
 def main() -> None:
     season = CURRENT_SEASON
-    horizon = 6
     with Run("optimiser", season) as run:
-        pool, gws = load_players(season, horizon)
-        log(f"  {len(pool)} selectable players, gameweeks {gws}")
+        rows: list[dict] = []
+        for horizon in HORIZONS:
+            log(f"\n  === horizon: {horizon} gameweek(s) ===")
+            rows.extend(build_for_horizon(season, horizon))
+        if rows:
+            delete_where("optimal_squads", f"season=eq.{season}&gw=eq.{rows[0]['gw']}")
+            run.rows = insert_rows("optimal_squads", rows)
+        log(f"\n  stored {run.rows} row(s) across horizons {HORIZONS}")
 
-        dream = optimise(pool, gws)
-        if not dream:
-            raise RuntimeError("no optimal squad found within the time limit")
-        describe(dream, gws, "Best possible squad from a clean 100.0m")
 
-        rows = [
-            {
-                "season": season,
-                "gw": gws[0],
-                "mode": "dream",
-                "squad_id": None,
-                "transfers_allowed": None,
-                "budget": BUDGET,
-                "xi_points": dream["xi_points"],
-                "squad_cost": dream["squad_cost"],
-                "hit_cost": 0,
-                "net_points": dream["xi_points"],
+def build_for_horizon(season: str, horizon: int) -> list[dict]:
+    pool, gws = load_players(season, horizon)
+    log(f"  {len(pool)} selectable players, gameweeks {gws}")
+
+    dream = optimise(pool, gws)
+    if not dream:
+        raise RuntimeError("no optimal squad found within the time limit")
+    describe(dream, gws, "Best possible squad from a clean 100.0m")
+
+    rows = [
+        {
+            "season": season,
+            "gw": gws[0],
+            "mode": "dream",
+            "horizon": horizon,
+            "squad_id": None,
+            "transfers_allowed": None,
+            "budget": BUDGET,
+            "xi_points": dream["xi_points"],
+            "squad_cost": dream["squad_cost"],
+            "hit_cost": 0,
+            "net_points": dream["xi_points"],
+            "detail": {
+                "gameweeks": gws,
+                "squad": [
+                    {
+                        "player_id": p["id"],
+                        "name": p["name"],
+                        "team": p["team"],
+                        "pos": p["pos"],
+                        "cost": p["cost"],
+                        "per_gw": {str(g): round(p["per_gw"].get(g, 0.0), 2) for g in gws},
+                        "total": round(p["total"], 2),
+                    }
+                    for p in dream["squad"]
+                ],
+                "roles": {str(g): dream["roles"][g] for g in gws},
+            },
+        }
+    ]
+    # Reachable: the best squad actually attainable from the current one.
+    squad_row, selling = current_squad(season)
+    if squad_row and selling:
+        owned = set(selling)
+        # An owned player filtered out of the pool cannot be represented as
+        # "kept", which would silently force a transfer that is not needed.
+        in_pool = {p["id"] for p in pool}
+        missing = owned - in_pool
+        if missing:
+            log(f"  {len(missing)} owned player(s) have no usable projection; "
+                "they will be treated as sellable only")
+        baseline = score_existing(pool, gws, owned)
+        free_transfers = squad_row["free_transfers"]
+        log(f"\n  current squad scores {baseline:.1f} XI points "
+            f"(bank {squad_row['bank']/10:.1f}m, {free_transfers} free transfer(s))")
+        log(f"  {'transfers':>10}{'XI points':>12}{'gain':>9}{'hit':>6}{'net gain':>11}")
+        best_net, best_n = 0.0, 0
+        for n in range(0, 6):
+            res = optimise(
+                pool, gws,
+                budget=squad_row["bank"],
+                available_from=selling,
+                max_transfers=n,
+            )
+            if not res:
+                continue
+            gain = res["xi_points"] - baseline
+            hit = HIT_COST * max(0, n - free_transfers)
+            net = gain - hit
+            log(f"  {n:>10}{res['xi_points']:>12.1f}{gain:>+9.1f}{-hit:>6}{net:>+11.1f}")
+            if net > best_net:
+                best_net, best_n = net, n
+            rows.append({
+                "season": season, "gw": gws[0], "mode": "reachable",
+                "horizon": horizon,
+                "squad_id": squad_row["id"],
+                "transfers_allowed": n, "budget": squad_row["bank"],
+                "xi_points": res["xi_points"], "squad_cost": res["squad_cost"],
+                "hit_cost": hit, "net_points": round(net, 3),
                 "detail": {
                     "gameweeks": gws,
+                    "baseline_xi_points": baseline,
+                    "free_transfers": free_transfers,
                     "squad": [
-                        {
-                            "player_id": p["id"],
-                            "name": p["name"],
-                            "team": p["team"],
-                            "pos": p["pos"],
-                            "cost": p["cost"],
-                            "per_gw": {str(g): round(p["per_gw"].get(g, 0.0), 2) for g in gws},
-                            "total": round(p["total"], 2),
-                        }
-                        for p in dream["squad"]
+                        {"player_id": p["id"], "name": p["name"], "team": p["team"],
+                         "pos": p["pos"], "cost": p["cost"],
+                         "owned": p["id"] in owned,
+                         "per_gw": {str(g): round(p["per_gw"].get(g, 0.0), 2) for g in gws},
+                         "total": round(p["total"], 2)}
+                        for p in res["squad"]
                     ],
-                    "roles": {str(g): dream["roles"][g] for g in gws},
+                    "out": [
+                        {"player_id": i} for i in owned
+                        if i not in {p["id"] for p in res["squad"]}
+                    ],
+                    "roles": {str(g): res["roles"][g] for g in gws},
                 },
-            }
-        ]
-        # Reachable: the best squad actually attainable from the current one.
-        squad_row, selling = current_squad(season)
-        if squad_row and selling:
-            owned = set(selling)
-            # An owned player filtered out of the pool cannot be represented as
-            # "kept", which would silently force a transfer that is not needed.
-            in_pool = {p["id"] for p in pool}
-            missing = owned - in_pool
-            if missing:
-                log(f"  {len(missing)} owned player(s) have no usable projection; "
-                    "they will be treated as sellable only")
-            baseline = score_existing(pool, gws, owned)
-            free_transfers = squad_row["free_transfers"]
-            log(f"\n  current squad scores {baseline:.1f} XI points "
-                f"(bank {squad_row['bank']/10:.1f}m, {free_transfers} free transfer(s))")
-            log(f"  {'transfers':>10}{'XI points':>12}{'gain':>9}{'hit':>6}{'net gain':>11}")
-            best_net, best_n = 0.0, 0
-            for n in range(0, 6):
-                res = optimise(
-                    pool, gws,
-                    budget=squad_row["bank"],
-                    available_from=selling,
-                    max_transfers=n,
-                )
-                if not res:
-                    continue
-                gain = res["xi_points"] - baseline
-                hit = HIT_COST * max(0, n - free_transfers)
-                net = gain - hit
-                log(f"  {n:>10}{res['xi_points']:>12.1f}{gain:>+9.1f}{-hit:>6}{net:>+11.1f}")
-                if net > best_net:
-                    best_net, best_n = net, n
-                rows.append({
-                    "season": season, "gw": gws[0], "mode": "reachable",
-                    "squad_id": squad_row["id"],
-                    "transfers_allowed": n, "budget": squad_row["bank"],
-                    "xi_points": res["xi_points"], "squad_cost": res["squad_cost"],
-                    "hit_cost": hit, "net_points": round(net, 3),
-                    "detail": {
-                        "gameweeks": gws,
-                        "baseline_xi_points": baseline,
-                        "free_transfers": free_transfers,
-                        "squad": [
-                            {"player_id": p["id"], "name": p["name"], "team": p["team"],
-                             "pos": p["pos"], "cost": p["cost"],
-                             "owned": p["id"] in owned,
-                             "per_gw": {str(g): round(p["per_gw"].get(g, 0.0), 2) for g in gws},
-                             "total": round(p["total"], 2)}
-                            for p in res["squad"]
-                        ],
-                        "out": [
-                            {"player_id": i} for i in owned
-                            if i not in {p["id"] for p in res["squad"]}
-                        ],
-                        "roles": {str(g): res["roles"][g] for g in gws},
-                    },
-                })
-            log(f"\n  best move: {best_n} transfer(s) for a net {best_net:+.1f} points")
-        else:
-            log("\n  no current squad imported; skipping the reachable build")
+            })
+        log(f"\n  best move: {best_n} transfer(s) for a net {best_net:+.1f} points")
+    else:
+        log("\n  no current squad imported; skipping the reachable build")
 
-        delete_where("optimal_squads", f"season=eq.{season}&gw=eq.{gws[0]}")
-        run.rows = insert_rows("optimal_squads", rows)
-        log(f"  stored {run.rows} optimal squad(s)")
+    return rows
 
 
 if __name__ == "__main__":

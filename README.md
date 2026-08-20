@@ -464,6 +464,16 @@ Known gaps, in rough order of how much they would cost you:
 - **Double and blank gameweeks.** Multiple fixtures per gameweek are handled
   correctly in the maths but never flagged in the UI. None are scheduled yet.
 
+## Three horizons, three answers
+
+The optimiser solves for one gameweek, three and six, and the page toggles
+between them. They disagree, which is the point: a player with a hard fixture
+this week and an easy run after is a bad one-week transfer and a good six-week
+one, and showing a single number implies a certainty that is not there.
+
+On the current squad it reads 1 transfer worth +0.1 over one gameweek, 1 worth
++0.3 over three, and nothing worth doing over six.
+
 ## Planning transfers across the horizon
 
 `ingest/multiweek.py` answers a harder question than the single-week optimiser:

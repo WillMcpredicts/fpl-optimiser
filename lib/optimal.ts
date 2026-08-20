@@ -23,6 +23,7 @@ export type OptimalRow = {
   hit_cost: number;
   net_points: number;
   squad_id: number | null;
+  horizon: number | null;
   detail: {
     gameweeks: number[];
     baseline_xi_points?: number;
@@ -68,12 +69,16 @@ export type OptimalData = {
   /** True when the stored results were built from a squad since replaced. */
   stale: boolean;
   plan: PlanWeek[];
+  horizon: number;
+  horizonsAvailable: number[];
   currentSquadId: number | null;
   chips: ChipPlan[];
   playerNames: Record<number, { name: string; team: string; cost: number; pos: number }>;
 };
 
-export async function loadOptimal(): Promise<OptimalData> {
+export const HORIZONS = [1, 3, 6];
+
+export async function loadOptimal(horizon = 6): Promise<OptimalData> {
   const empty: OptimalData = {
     configured: isConfigured(),
     error: null,
@@ -85,6 +90,8 @@ export async function loadOptimal(): Promise<OptimalData> {
     best: null,
     stale: false,
     plan: [],
+    horizon: 6,
+    horizonsAvailable: [],
     currentSquadId: null,
     chips: [],
     playerNames: {},
@@ -123,8 +130,18 @@ export async function loadOptimal(): Promise<OptimalData> {
       };
     }
 
-    const dream = rows.find((r) => r.mode === "dream") ?? null;
-    const reachable = rows
+    const horizonsAvailable = [
+      ...new Set(rows.map((r) => r.horizon ?? 6)),
+    ].sort((a, b) => a - b);
+    // Fall back to whatever was actually computed, so a horizon that has not
+    // been solved yet shows the nearest thing rather than an empty page.
+    const active = horizonsAvailable.includes(horizon)
+      ? horizon
+      : horizonsAvailable[horizonsAvailable.length - 1] ?? 6;
+    const scoped = rows.filter((r) => (r.horizon ?? 6) === active);
+
+    const dream = scoped.find((r) => r.mode === "dream") ?? null;
+    const reachable = scoped
       .filter((r) => r.mode === "reachable")
       .sort((a, b) => (a.transfers_allowed ?? 0) - (b.transfers_allowed ?? 0));
 
@@ -145,6 +162,8 @@ export async function loadOptimal(): Promise<OptimalData> {
       best,
       // Results computed against a squad that has since been replaced are worse
       // than no results: they recommend transfers for a team you no longer have.
+      horizon: active,
+      horizonsAvailable,
       stale: reachable.length > 0 && reachable[0].squad_id !== currentSquadId,
       // Only show a plan built from the squad you actually have.
       plan: planRows.filter((r) => r.squad_id === currentSquadId),
