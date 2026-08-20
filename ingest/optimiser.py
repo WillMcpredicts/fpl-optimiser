@@ -282,6 +282,7 @@ def main() -> None:
                 "season": season,
                 "gw": gws[0],
                 "mode": "dream",
+                "squad_id": None,
                 "transfers_allowed": None,
                 "budget": BUDGET,
                 "xi_points": dream["xi_points"],
@@ -340,6 +341,7 @@ def main() -> None:
                     best_net, best_n = net, n
                 rows.append({
                     "season": season, "gw": gws[0], "mode": "reachable",
+                    "squad_id": squad_row["id"],
                     "transfers_allowed": n, "budget": squad_row["bank"],
                     "xi_points": res["xi_points"], "squad_cost": res["squad_cost"],
                     "hit_cost": hit, "net_points": round(net, 3),

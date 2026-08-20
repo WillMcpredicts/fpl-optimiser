@@ -22,6 +22,7 @@ export type OptimalRow = {
   squad_cost: number;
   hit_cost: number;
   net_points: number;
+  squad_id: number | null;
   detail: {
     gameweeks: number[];
     baseline_xi_points?: number;
@@ -54,6 +55,9 @@ export type OptimalData = {
   baseline: number;
   freeTransfers: number;
   best: OptimalRow | null;
+  /** True when the stored results were built from a squad since replaced. */
+  stale: boolean;
+  currentSquadId: number | null;
   chips: ChipPlan[];
   playerNames: Record<number, { name: string; team: string; cost: number; pos: number }>;
 };
@@ -68,13 +72,15 @@ export async function loadOptimal(): Promise<OptimalData> {
     baseline: 0,
     freeTransfers: 1,
     best: null,
+    stale: false,
+    currentSquadId: null,
     chips: [],
     playerNames: {},
   };
   if (!isConfigured()) return { ...empty, error: "Supabase is not configured." };
 
   try {
-    const [rows, players, teams, chips] = await Promise.all([
+    const [rows, players, teams, chips, squads] = await Promise.all([
       selectRows<OptimalRow>(
         "optimal_squads",
         `season=eq.${SEASON}&select=*&order=transfers_allowed.asc`,
@@ -85,8 +91,10 @@ export async function loadOptimal(): Promise<OptimalData> {
       ),
       selectRows<{ id: number; short_name: string }>("teams", `season=eq.${SEASON}&select=id,short_name`),
       selectRows<ChipPlan>("chip_plans", `season=eq.${SEASON}&select=*&order=gw`),
+      selectRows<{ id: number }>("my_squad", `season=eq.${SEASON}&is_current=is.true&select=id`),
     ]);
-    if (!rows.length) return { ...empty, chips };
+    const currentSquadId = squads[0]?.id ?? null;
+    if (!rows.length) return { ...empty, chips, currentSquadId };
 
     const teamName = new Map(teams.map((t) => [t.id, t.short_name]));
     const playerNames: OptimalData["playerNames"] = {};
@@ -119,6 +127,10 @@ export async function loadOptimal(): Promise<OptimalData> {
       baseline: Number(reachable[0]?.detail.baseline_xi_points ?? 0),
       freeTransfers: reachable[0]?.detail.free_transfers ?? 1,
       best,
+      // Results computed against a squad that has since been replaced are worse
+      // than no results: they recommend transfers for a team you no longer have.
+      stale: reachable.length > 0 && reachable[0].squad_id !== currentSquadId,
+      currentSquadId,
       chips,
       playerNames,
     };

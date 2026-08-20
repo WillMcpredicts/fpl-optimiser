@@ -464,6 +464,24 @@ Known gaps, in rough order of how much they would cost you:
 - **Double and blank gameweeks.** Multiple fixtures per gameweek are handled
   correctly in the maths but never flagged in the UI. None are scheduled yet.
 
+## Stale results are hidden, not shown
+
+Optimiser output is computed by the Python pipeline and read by the site, so
+there is always a window between saving a squad and the next scheduled run. Both
+`transfer_suggestions` and `optimal_squads` record the squad they were built
+from, and the pages hide their results when it no longer matches.
+
+That matters more than it sounds: before `optimal_squads` carried `squad_id`, a
+squad change left the Optimiser page confidently recommending transfers against
+a team that no longer existed, with nothing on screen to say so. A confident
+answer to the wrong question is worse than no answer.
+
+To refresh immediately rather than waiting for the schedule:
+
+```bash
+cd ~/fpl-optimiser/ingest && ../.venv/bin/python run.py optimise
+```
+
 ## Automation
 
 `ingest.yml` runs twice daily. Prices settle just after 01:30 UK and team news

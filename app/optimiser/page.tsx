@@ -89,6 +89,34 @@ export default async function OptimiserPage() {
     );
   }
 
+  if (data.stale) {
+    return (
+      <main className="wrap">
+        <header className="top">
+          <h1>FPL Optimiser</h1>
+          <span className="meta">Optimiser · results out of date</span>
+        </header>
+        <Nav current="/optimiser" />
+        <div className="banner">
+          <strong>Your squad has changed since these were worked out</strong>
+          <p style={{ margin: "6px 0 0" }}>
+            The stored results were built from a different squad, so every
+            recommendation below would be for a team you no longer have. They are hidden
+            rather than shown, because a confident answer to the wrong question is worse
+            than no answer.
+          </p>
+          <p style={{ margin: "6px 0 0" }}>
+            The optimiser runs on a schedule, so this clears itself within a few hours.
+            To refresh now:
+          </p>
+          <p style={{ margin: "6px 0 0" }}>
+            <code>cd ~/fpl-optimiser/ingest &amp;&amp; ../.venv/bin/python run.py optimise</code>
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   const bestN = data.best?.transfers_allowed ?? 0;
   const bestNet = Number(data.best?.net_points ?? 0);
 
